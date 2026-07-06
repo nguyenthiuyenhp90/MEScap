@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png" />
 <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-<meta name="theme-color" content="#11151A" />
+<meta name="theme-color" content="#F5F6F8" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="MES Cáp" />
@@ -345,7 +345,7 @@ a.getModuleId)?!0:!1};b.typeOf=c});
     var fb = document.getElementById("loading-fallback");
     if (fb && !fb.classList.contains("hide")) {
       fb.innerHTML =
-        '<div style="max-width:640px;text-align:left;color:#E17167;font-family:monospace;font-size:12px;white-space:pre-wrap;line-height:1.5;">' +
+        '<div style="max-width:640px;text-align:left;color:#D33F3F;font-family:monospace;font-size:12px;white-space:pre-wrap;line-height:1.5;">' +
         '⚠ Lỗi khi tải ứng dụng (kiểm tra kết nối Internet để tải thư viện từ CDN):\n' +
         (e && e.message ? e.message : "Không rõ nguyên nhân") +
         (e && e.filename ? "\n\nTệp: " + e.filename + (e.lineno ? ":" + e.lineno : "") : "") +
@@ -354,16 +354,16 @@ a.getModuleId)?!0:!1};b.typeOf=c});
   });
 </script>
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: light; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
     background:
-      radial-gradient(1200px 620px at 12% -10%, rgba(214,138,84,0.10), transparent 58%),
-      radial-gradient(1000px 620px at 102% -6%, rgba(99,152,180,0.09), transparent 56%),
-      radial-gradient(1400px 900px at 50% 120%, rgba(99,152,180,0.05), transparent 60%),
-      linear-gradient(180deg, #12161C 0%, #0F1318 55%, #0D1116 100%);
+      radial-gradient(1200px 620px at 12% -10%, rgba(193,104,47,0.06), transparent 58%),
+      radial-gradient(1000px 620px at 102% -6%, rgba(46,123,166,0.06), transparent 56%),
+      radial-gradient(1400px 900px at 50% 120%, rgba(46,123,166,0.03), transparent 60%),
+      linear-gradient(180deg, #FAFBFC 0%, #F5F6F8 55%, #F1F3F5 100%);
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -372,8 +372,8 @@ a.getModuleId)?!0:!1};b.typeOf=c});
     content: "";
     position: fixed; inset: 0; pointer-events: none; z-index: 0;
     background-image:
-      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+      linear-gradient(rgba(16,24,40,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16,24,40,0.025) 1px, transparent 1px);
     background-size: 42px 42px;
     -webkit-mask-image: radial-gradient(1400px 900px at 50% 0%, #000 0%, transparent 75%);
     mask-image: radial-gradient(1400px 900px at 50% 0%, #000 0%, transparent 75%);
@@ -383,20 +383,20 @@ a.getModuleId)?!0:!1};b.typeOf=c});
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2C3540; border-radius: 999px; border: 2px solid #11151A; }
-  ::-webkit-scrollbar-thumb:hover { background: #3a4753; }
-  * { scrollbar-width: thin; scrollbar-color: #2C3540 transparent; }
+  ::-webkit-scrollbar-thumb { background: #D4D8DE; border-radius: 999px; border: 2px solid #F5F6F8; }
+  ::-webkit-scrollbar-thumb:hover { background: #B7BDC6; }
+  * { scrollbar-width: thin; scrollbar-color: #D4D8DE transparent; }
 
   [style*="tabular-nums"], .tabular-nums, table td, table th { font-feature-settings: "tnum" 1; }
 
   button, select, input { font-family: inherit; }
   button:focus-visible, select:focus-visible, input:focus-visible {
-    outline: 2px solid #D68A54; outline-offset: 2px;
+    outline: 2px solid #C1682F; outline-offset: 2px;
   }
 
-  .panel-card:hover { box-shadow: 0 1px 2px rgba(0,0,0,0.35), 0 14px 32px -14px rgba(0,0,0,0.6); }
-  .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 26px -12px rgba(0,0,0,0.55); }
-  .nav-item:hover { background: #232B36 !important; color: #F1EFE9 !important; }
+  .panel-card:hover { box-shadow: 0 1px 2px rgba(16,24,40,0.06), 0 14px 32px -14px rgba(16,24,40,0.16); }
+  .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(16,24,40,0.06), 0 12px 26px -12px rgba(16,24,40,0.14); }
+  .nav-item:hover { background: #F1F3F6 !important; color: #171B21 !important; }
   .btn-press:active { transform: scale(0.97); }
 
   @keyframes toastIn {
@@ -411,14 +411,14 @@ a.getModuleId)?!0:!1};b.typeOf=c});
   }
   main .flex-1.p-7 > * { animation: fadeUp 0.28s ease-out; }
 
-  ::selection { background: rgba(214,138,84,0.35); color: #fff; }
+  ::selection { background: rgba(193,104,47,0.25); color: #171B21; }
 
   #loading-fallback {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: #11151A; color: #93A0AF; font-size: 13px; letter-spacing: 0.02em; z-index: 9999;
+    background: #F5F6F8; color: #6B7280; font-size: 13px; letter-spacing: 0.02em; z-index: 9999;
   }
   #loading-fallback.hide { display: none; }
-  .spin { width: 22px; height: 22px; border-radius: 999px; border: 2.5px solid #2C3540; border-top-color: #D68A54; animation: spin 0.8s linear infinite; margin-right: 10px; }
+  .spin { width: 22px; height: 22px; border-radius: 999px; border: 2.5px solid #E4E7EC; border-top-color: #C1682F; animation: spin 0.8s linear infinite; margin-right: 10px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ============ ĐĂNG NHẬP ============ */
@@ -429,8 +429,8 @@ a.getModuleId)?!0:!1};b.typeOf=c});
   .login-wrap::before {
     content: ""; position: absolute; inset: -20%; z-index: 0; pointer-events: none;
     background:
-      radial-gradient(560px 420px at 22% 18%, rgba(214,138,84,0.16), transparent 62%),
-      radial-gradient(520px 460px at 82% 78%, rgba(99,152,180,0.14), transparent 60%);
+      radial-gradient(560px 420px at 22% 18%, rgba(193,104,47,0.10), transparent 62%),
+      radial-gradient(520px 460px at 82% 78%, rgba(46,123,166,0.10), transparent 60%);
     animation: loginGlow 12s ease-in-out infinite alternate;
   }
   @keyframes loginGlow {
@@ -439,23 +439,23 @@ a.getModuleId)?!0:!1};b.typeOf=c});
   }
   .login-card { width: 100%; max-width: 380px; position: relative; z-index: 1; }
   .login-card .panel-card {
-    background: linear-gradient(180deg, rgba(27,33,42,0.92) 0%, rgba(20,25,32,0.92) 100%) !important;
+    background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,251,252,0.98) 100%) !important;
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(214,138,84,0.16) !important;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 24px 60px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02) inset !important;
+    border: 1px solid rgba(193,104,47,0.18) !important;
+    box-shadow: 0 1px 2px rgba(16,24,40,0.05), 0 24px 60px -20px rgba(16,24,40,0.18), 0 0 0 1px rgba(16,24,40,0.02) inset !important;
   }
   .login-logo-badge {
-    position: relative; box-shadow: 0 4px 14px -4px rgba(214,138,84,0.5), 0 0 0 4px rgba(214,138,84,0.08);
+    position: relative; box-shadow: 0 4px 14px -4px rgba(193,104,47,0.5), 0 0 0 4px rgba(193,104,47,0.10);
     animation: logoPulse 3.2s ease-in-out infinite;
   }
   @keyframes logoPulse {
-    0%, 100% { box-shadow: 0 4px 14px -4px rgba(214,138,84,0.5), 0 0 0 4px rgba(214,138,84,0.08); }
-    50% { box-shadow: 0 4px 18px -2px rgba(214,138,84,0.65), 0 0 0 7px rgba(214,138,84,0.05); }
+    0%, 100% { box-shadow: 0 4px 14px -4px rgba(193,104,47,0.5), 0 0 0 4px rgba(193,104,47,0.10); }
+    50% { box-shadow: 0 4px 18px -2px rgba(193,104,47,0.65), 0 0 0 7px rgba(193,104,47,0.06); }
   }
   .login-input-wrap { position: relative; display: flex; align-items: center; }
   .login-input-wrap .field-icon { position: absolute; left: 12px; display: flex; pointer-events: none; }
   .login-input-wrap input { padding-left: 36px !important; padding-right: 36px !important; transition: border-color 0.15s, box-shadow 0.15s; }
-  .login-input-wrap input:focus { border-color: rgba(214,138,84,0.55) !important; box-shadow: 0 0 0 3px rgba(214,138,84,0.12) !important; }
+  .login-input-wrap input:focus { border-color: rgba(193,104,47,0.55) !important; box-shadow: 0 0 0 3px rgba(193,104,47,0.14) !important; }
   .login-eye { position: absolute; right: 10px; background: transparent; border: 0; cursor: pointer; display: flex; padding: 2px; }
   .role-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
 
@@ -491,6 +491,7 @@ a.getModuleId)?!0:!1};b.typeOf=c});
 
   @media (max-width: 860px) {
     html, body { -webkit-overflow-scrolling: touch; }
+    .app-shell { flex-direction: column; }
     .app-sidebar {
       position: fixed; top: 0; left: 0; bottom: 0; z-index: 60;
       transform: translateX(-100%); width: 82vw; max-width: 300px;
@@ -998,20 +999,20 @@ function Pencil(props) {
 
 /* ============================== TOKENS ============================== */
 const C = {
-  bg: "#11151A",
-  panel: "#1B212A",
-  panel2: "#232B36",
-  line: "#2C3540",
-  copper: "#D68A54",
-  copperDim: "#8A5636",
-  steel: "#6398B4",
-  text: "#F1EFE9",
-  muted: "#93A0AF",
-  success: "#6FAE7C",
-  warning: "#E0A93E",
-  danger: "#E17167",
-  shadow: "0 1px 2px rgba(0,0,0,0.35), 0 8px 24px -12px rgba(0,0,0,0.55)",
-  shadowSoft: "0 1px 2px rgba(0,0,0,0.25)"
+  bg: "#F5F6F8",
+  panel: "#FFFFFF",
+  panel2: "#F1F3F6",
+  line: "#E4E7EC",
+  copper: "#C1682F",
+  copperDim: "#A8551F",
+  steel: "#2E7BA6",
+  text: "#171B21",
+  muted: "#6B7280",
+  success: "#20895A",
+  warning: "#B8790E",
+  danger: "#D33F3F",
+  shadow: "0 1px 2px rgba(16,24,40,0.06), 0 8px 24px -12px rgba(16,24,40,0.12)",
+  shadowSoft: "0 1px 2px rgba(16,24,40,0.05)"
 };
 
 /* ============================== MASTER DATA ============================== */
@@ -1838,7 +1839,7 @@ function Btn({
     primary: {
       background: `linear-gradient(180deg, ${C.copper}, ${C.copperDim})`,
       color: "#1B140F",
-      boxShadow: "0 1px 2px rgba(0,0,0,0.3), 0 4px 12px -4px rgba(214,138,84,0.45)"
+      boxShadow: "0 1px 2px rgba(0,0,0,0.3), 0 4px 12px -4px rgba(193,104,47,0.4)"
     },
     ghost: {
       background: C.panel2,
@@ -1951,11 +1952,11 @@ function useSession() {
 const ROLE_INFO = {
   admin: {
     label: "Quản trị viên",
-    color: "#D68A54"
+    color: "#C1682F"
   },
   nhanvien: {
     label: "Nhân viên",
-    color: "#6398B4"
+    color: "#2E7BA6"
   }
 };
 function LoginScreen({
@@ -2608,7 +2609,7 @@ function App() {
     className: "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
     style: {
       background: `linear-gradient(135deg, ${C.copper}, ${C.copperDim})`,
-      boxShadow: "0 4px 14px -4px rgba(214,138,84,0.5)"
+      boxShadow: "0 4px 14px -4px rgba(193,104,47,0.45)"
     }
   }, /*#__PURE__*/React.createElement(Factory, {
     size: 19,
@@ -2834,8 +2835,8 @@ function App() {
     className: "toast-in fixed bottom-6 right-6 px-4 py-3.5 rounded-xl flex items-center gap-2.5 text-sm font-medium",
     style: {
       background: toast.tone === "danger" ? C.danger : C.success,
-      color: "#12160f",
-      boxShadow: "0 12px 32px -8px rgba(0,0,0,0.5)"
+      color: "#FFFFFF",
+      boxShadow: "0 8px 24px -8px rgba(16,24,40,0.35)"
     }
   }, toast.tone === "danger" ? /*#__PURE__*/React.createElement(AlertTriangle, {
     size: 16
@@ -6277,7 +6278,7 @@ try {
   const fb = document.getElementById("loading-fallback");
   if (fb) {
     fb.classList.remove("hide");
-    fb.innerHTML = '<div style="max-width:560px;text-align:left;color:#E17167;font-family:monospace;font-size:12px;white-space:pre-wrap;">Lỗi khi khởi động ứng dụng:\n' + (err && err.message ? err.message : String(err)) + "</div>";
+    fb.innerHTML = '<div style="max-width:560px;text-align:left;color:#D33F3F;font-family:monospace;font-size:12px;white-space:pre-wrap;">Lỗi khi khởi động ứng dụng:\n' + (err && err.message ? err.message : String(err)) + "</div>";
   }
 }
 </script>
