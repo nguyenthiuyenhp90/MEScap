@@ -505,11 +505,49 @@ a.getModuleId)?!0:!1};b.typeOf=c});
       -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
       animation: fadeUp 0.2s ease-out;
     }
-    .app-main-content { padding: 14px !important; }
+    .app-main-content { padding: 14px !important; padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important; }
     .login-card { max-width: 340px; }
     .overflow-x-auto { -webkit-overflow-scrolling: touch; }
     main .flex-1.p-7, .flex-1.p-7 { padding: 14px !important; }
     .grid.grid-cols-2 { gap: 10px; }
+  }
+
+  .overflow-y-auto { -webkit-overflow-scrolling: touch; }
+
+  /* ============ THANH TAB DƯỚI (MOBILE) ============ */
+  .app-bottom-nav {
+    display: none;
+  }
+  @media (max-width: 860px) {
+    .app-bottom-nav {
+      display: flex;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+      gap: 2px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px)) 6px;
+    }
+    .app-bottom-nav::-webkit-scrollbar { display: none; }
+    .app-bottom-nav-item {
+      flex: 0 0 auto;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px;
+      min-width: 62px;
+      padding: 7px 10px 6px;
+      border: 0; background: transparent; cursor: pointer;
+      border-radius: 12px;
+      transition: background 0.15s ease, color 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .app-bottom-nav-item:active { transform: scale(0.96); }
+    .app-bottom-nav-label {
+      font-size: 9.5px; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; line-height: 1;
+    }
+    .app-bottom-nav-dot {
+      position: absolute; margin-top: -19px; margin-left: 15px;
+      width: 5px; height: 5px; border-radius: 999px;
+    }
   }
 
   @media (max-width: 420px) {
@@ -2831,7 +2869,33 @@ function App() {
     setData: setData,
     notify: notify,
     currentUser: currentUser
-  }))), toast && /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("nav", {
+    className: "app-bottom-nav border-t",
+    style: {
+      background: C.panel,
+      borderColor: C.line,
+      boxShadow: "0 -2px 16px -6px rgba(16,24,40,0.10)"
+    }
+  }, NAV.map(n => {
+    const Icon = n.icon;
+    const active = tab === n.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: "bn-" + n.id,
+      onClick: () => goTab(n.id),
+      className: "app-bottom-nav-item",
+      style: {
+        color: active ? C.copper : C.muted,
+        background: active ? C.panel2 : "transparent"
+      }
+    }, /*#__PURE__*/React.createElement(Icon, {
+      size: 19,
+      style: {
+        opacity: active ? 1 : 0.8
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "app-bottom-nav-label"
+    }, n.label));
+  })), toast && /*#__PURE__*/React.createElement("div", {
     className: "toast-in fixed bottom-6 right-6 px-4 py-3.5 rounded-xl flex items-center gap-2.5 text-sm font-medium",
     style: {
       background: toast.tone === "danger" ? C.danger : C.success,
