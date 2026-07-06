@@ -365,12 +365,25 @@ var e,t,r="function"==typeof Symbol?Symbol:{},a=r.iterator||"@@iterator",n=r.toS
   body {
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
     background:
-      radial-gradient(1100px 560px at 14% -8%, rgba(214,138,84,0.07), transparent 60%),
-      radial-gradient(900px 520px at 100% 0%, rgba(99,152,180,0.06), transparent 55%),
-      #11151A;
+      radial-gradient(1200px 620px at 12% -10%, rgba(214,138,84,0.10), transparent 58%),
+      radial-gradient(1000px 620px at 102% -6%, rgba(99,152,180,0.09), transparent 56%),
+      radial-gradient(1400px 900px at 50% 120%, rgba(99,152,180,0.05), transparent 60%),
+      linear-gradient(180deg, #12161C 0%, #0F1318 55%, #0D1116 100%);
+    background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 42px 42px;
+    -webkit-mask-image: radial-gradient(1400px 900px at 50% 0%, #000 0%, transparent 75%);
+    mask-image: radial-gradient(1400px 900px at 50% 0%, #000 0%, transparent 75%);
+  }
+  #root { position: relative; z-index: 1; }
   #root { min-height: 100vh; }
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -412,6 +425,71 @@ var e,t,r="function"==typeof Symbol?Symbol:{},a=r.iterator||"@@iterator",n=r.toS
   #loading-fallback.hide { display: none; }
   .spin { width: 22px; height: 22px; border-radius: 999px; border: 2.5px solid #2C3540; border-top-color: #D68A54; animation: spin 0.8s linear infinite; margin-right: 10px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============ ĐĂNG NHẬP ============ */
+  .login-wrap {
+    min-height: 100vh; width: 100%; display: flex; align-items: center; justify-content: center; padding: 24px;
+    position: relative; overflow: hidden;
+  }
+  .login-wrap::before {
+    content: ""; position: absolute; inset: -20%; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(560px 420px at 22% 18%, rgba(214,138,84,0.16), transparent 62%),
+      radial-gradient(520px 460px at 82% 78%, rgba(99,152,180,0.14), transparent 60%);
+    animation: loginGlow 12s ease-in-out infinite alternate;
+  }
+  @keyframes loginGlow {
+    0% { transform: translate3d(0,0,0) scale(1); }
+    100% { transform: translate3d(1.5%, -1.5%, 0) scale(1.06); }
+  }
+  .login-card { width: 100%; max-width: 380px; position: relative; z-index: 1; }
+  .login-card .panel-card {
+    background: linear-gradient(180deg, rgba(27,33,42,0.92) 0%, rgba(20,25,32,0.92) 100%) !important;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(214,138,84,0.16) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 24px 60px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02) inset !important;
+  }
+  .login-logo-badge {
+    position: relative; box-shadow: 0 4px 14px -4px rgba(214,138,84,0.5), 0 0 0 4px rgba(214,138,84,0.08);
+    animation: logoPulse 3.2s ease-in-out infinite;
+  }
+  @keyframes logoPulse {
+    0%, 100% { box-shadow: 0 4px 14px -4px rgba(214,138,84,0.5), 0 0 0 4px rgba(214,138,84,0.08); }
+    50% { box-shadow: 0 4px 18px -2px rgba(214,138,84,0.65), 0 0 0 7px rgba(214,138,84,0.05); }
+  }
+  .login-input-wrap { position: relative; display: flex; align-items: center; }
+  .login-input-wrap .field-icon { position: absolute; left: 12px; display: flex; pointer-events: none; }
+  .login-input-wrap input { padding-left: 36px !important; padding-right: 36px !important; transition: border-color 0.15s, box-shadow 0.15s; }
+  .login-input-wrap input:focus { border-color: rgba(214,138,84,0.55) !important; box-shadow: 0 0 0 3px rgba(214,138,84,0.12) !important; }
+  .login-eye { position: absolute; right: 10px; background: transparent; border: 0; cursor: pointer; display: flex; padding: 2px; }
+  .role-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+
+  /* ============ BỐ CỤC / RESPONSIVE ============ */
+  html, body { overflow-x: hidden; }
+  .app-topbar-mobile { display: none; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; }
+  .app-drawer-backdrop { display: none; }
+  .app-sidebar { transition: transform 0.25s ease; }
+  .app-hamburger-btn { background: transparent; border: 0; cursor: pointer; display: flex; padding: 4px; }
+
+  @media (max-width: 860px) {
+    .app-sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 60;
+      transform: translateX(-100%); width: 82vw; max-width: 300px;
+      box-shadow: 12px 0 40px -10px rgba(0,0,0,0.6);
+    }
+    .app-sidebar.open { transform: translateX(0); }
+    .app-topbar-mobile { display: flex; }
+    .app-header-desktop { display: none !important; }
+    .app-drawer-backdrop.open {
+      display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 55;
+      animation: fadeUp 0.2s ease-out;
+    }
+    .app-main-content { padding: 14px !important; }
+    .login-card { max-width: 340px; }
+  }
+  @media (min-width: 861px) {
+    .app-hamburger-btn.desktop-hide { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -424,6 +502,35 @@ const {
   BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } = Recharts;
+
+/* ============================== RESIZE OBSERVER POLYFILL ============================== */
+/* Một số trình duyệt/WebView cũ (đặc biệt trên tablet, kiosk nhà máy) không có ResizeObserver.
+   Recharts (biểu đồ Dashboard) cần API này để đo kích thước khung chứa; nếu thiếu, cả app sẽ
+   bị lỗi trắng màn hình NGAY SAU KHI đăng nhập thành công — trông giống hệt như "không đăng nhập được". */
+if (typeof window.ResizeObserver === "undefined") {
+  window.ResizeObserver = class ResizeObserverPolyfill {
+    constructor(callback) { this._cb = callback; this._els = new Set(); this._raf = null; this._last = new Map(); }
+    observe(el) {
+      this._els.add(el);
+      const tick = () => {
+        const entries = [];
+        this._els.forEach((node) => {
+          const rect = node.getBoundingClientRect();
+          const prev = this._last.get(node);
+          if (!prev || prev.width !== rect.width || prev.height !== rect.height) {
+            this._last.set(node, { width: rect.width, height: rect.height });
+            entries.push({ target: node, contentRect: rect });
+          }
+        });
+        if (entries.length) { try { this._cb(entries, this); } catch (e) { /* nuốt lỗi để không crash app */ } }
+        this._raf = window.requestAnimationFrame(tick);
+      };
+      if (!this._raf) this._raf = window.requestAnimationFrame(tick);
+    }
+    unobserve(el) { this._els.delete(el); this._last.delete(el); }
+    disconnect() { this._els.clear(); this._last.clear(); if (this._raf) cancelAnimationFrame(this._raf); this._raf = null; }
+  };
+}
 
 /* ============================== LOCAL STORAGE SHIM (thay cho window.storage của artifact) ============================== */
 window.storage = {
@@ -561,6 +668,72 @@ function SlidersHorizontal(props) {
     </IconBase>
   );
 }
+function Menu(props) {
+  return (
+    <IconBase {...props}>
+      <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />
+    </IconBase>
+  );
+}
+function X(props) {
+  return (
+    <IconBase {...props}>
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </IconBase>
+  );
+}
+function LogOut(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    </IconBase>
+  );
+}
+function Users(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </IconBase>
+  );
+}
+function User(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+    </IconBase>
+  );
+}
+function Eye(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" /><circle cx="12" cy="12" r="3" />
+    </IconBase>
+  );
+}
+function EyeOff(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <path d="M6.61 6.61A18.5 18.5 0 0 0 1 12s4 8 11 8a9.26 9.26 0 0 0 5.39-1.61" /><line x1="1" y1="1" x2="23" y2="23" />
+    </IconBase>
+  );
+}
+function KeyRound(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 .707-.293l1.147-1.147A6 6 0 1 0 8 12a6 6 0 0 0 .586 2.414z" />
+      <circle cx="16.5" cy="7.5" r="1.5" />
+    </IconBase>
+  );
+}
+function Pencil(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" />
+    </IconBase>
+  );
+}
 
 /* ============================== TOKENS ============================== */
 const C = {
@@ -665,6 +838,22 @@ function defaultMaHang() {
       bocFrom: "DET", dongGoiFrom: "BOC", xoanTongFrom: "XOAN_DOI", bom: cloneBom(), heSoVachSoVoiXoanDoi: 0.4,
       mauLoi: evenSplit(MAU_LOI_GOI_Y), mauXoanDoi: evenSplit(MAU_XOAN_DOI_GOI_Y) },
   ];
+}
+
+/* ============================== TÀI KHOẢN MẶC ĐỊNH ============================== */
+function defaultAuthUsers() {
+  return [
+    { id: "u-admin", ten: "Quản trị viên", username: "admin", password: "admin123", role: "admin", active: true },
+    { id: "u-nv", ten: "Nhân viên vận hành", username: "nhanvien", password: "nhanvien123", role: "nhanvien", active: true },
+  ];
+}
+// Dữ liệu cũ (trước khi có đăng nhập) có thể chưa có username/password hợp lệ trong data.users
+// -> tự động khởi tạo lại danh mục tài khoản mặc định để không ai bị khoá ngoài hệ thống.
+function migrateData(d) {
+  if (!d || typeof d !== "object") return d;
+  const hasValidUsers = Array.isArray(d.users) && d.users.some((u) => u && u.username && u.password);
+  if (hasValidUsers) return d;
+  return { ...d, users: defaultAuthUsers() };
 }
 
 /* ============================== SEED DATA ============================== */
@@ -780,7 +969,7 @@ function seedData() {
     maHang,
     nvlDanhMuc,
     nvlXuat, nvlNhapKho, btp, phe, cuon, tieuThu,
-    users: [{ id: "u1", ten: "Thống kê SX" }],
+    users: defaultAuthUsers(),
   };
 }
 
@@ -793,7 +982,7 @@ function usePersistedState() {
     (async () => {
       try {
         const res = await window.storage.get("mes-cap-demo-state");
-        setData(res ? JSON.parse(res.value) : seedData());
+        setData(res ? migrateData(JSON.parse(res.value)) : seedData());
       } catch {
         setData(seedData());
       } finally {
@@ -920,19 +1109,281 @@ function Pipeline({ status }) {
   );
 }
 
+/* ============================== ĐĂNG NHẬP / PHIÊN LÀM VIỆC ============================== */
+const SESSION_KEY = "mes-cap-demo-session";
+
+function useSession() {
+  const [session, setSession] = useState(undefined); // undefined = đang tải, null = chưa đăng nhập
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get(SESSION_KEY);
+        setSession(res ? JSON.parse(res.value) : null);
+      } catch { setSession(null); }
+    })();
+  }, []);
+  const login = useCallback((userId) => {
+    setSession({ userId });
+    window.storage.set(SESSION_KEY, JSON.stringify({ userId })).catch(() => {});
+  }, []);
+  const logout = useCallback(() => {
+    setSession(null);
+    window.storage.delete(SESSION_KEY).catch(() => {});
+  }, []);
+  return [session, login, logout];
+}
+
+const ROLE_INFO = {
+  admin: { label: "Quản trị viên", color: "#D68A54" },
+  nhanvien: { label: "Nhân viên", color: "#6398B4" },
+};
+
+function LoginScreen({ users, onLogin }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!username.trim() || !password) return;
+    setBusy(true);
+    setTimeout(() => {
+      const u = (users || []).find((x) => (x.username || "").trim().toLowerCase() === username.trim().toLowerCase());
+      if (!u || u.active === false) {
+        setErr("Tài khoản không tồn tại hoặc đã bị khoá.");
+      } else if (u.password !== password) {
+        setErr("Sai mật khẩu. Vui lòng thử lại.");
+      } else {
+        setErr("");
+        onLogin(u.id);
+      }
+      setBusy(false);
+    }, 200);
+  };
+
+  return (
+    <div className="login-wrap" style={{ background: C.bg, color: C.text, fontFamily: "Inter, ui-sans-serif, system-ui" }}>
+      <div className="login-card flex flex-col gap-5">
+        <div className="flex flex-col items-center gap-3 mb-2">
+          <div className="login-logo-badge w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${C.copper}, ${C.copperDim})` }}>
+            <Factory size={19} color="#1B140F" />
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-bold tracking-tight">MES Cáp/Dây điện</div>
+            <div className="text-[11.5px]" style={{ color: C.muted }}>Đăng nhập để tiếp tục sử dụng hệ thống</div>
+          </div>
+        </div>
+
+        <Panel>
+          <form onSubmit={submit} className="flex flex-col gap-4">
+            <Field label="Tên đăng nhập">
+              <div className="login-input-wrap">
+                <span className="field-icon"><User size={15} style={{ color: C.muted }} /></span>
+                <input autoFocus autoCapitalize="none" autoCorrect="off" value={username} onChange={(e) => { setUsername(e.target.value); setErr(""); }}
+                  className={inputCls} style={{ ...inputStyle, width: "100%" }} placeholder="admin" />
+              </div>
+            </Field>
+            <Field label="Mật khẩu">
+              <div className="login-input-wrap">
+                <span className="field-icon"><KeyRound size={15} style={{ color: C.muted }} /></span>
+                <input type={showPw ? "text" : "password"} value={password} onChange={(e) => { setPassword(e.target.value); setErr(""); }}
+                  className={inputCls} style={{ ...inputStyle, width: "100%" }} placeholder="••••••••" />
+                <button type="button" className="login-eye" onClick={() => setShowPw((s) => !s)} tabIndex={-1}>
+                  {showPw ? <EyeOff size={15} style={{ color: C.muted }} /> : <Eye size={15} style={{ color: C.muted }} />}
+                </button>
+              </div>
+            </Field>
+
+            {err && (
+              <div className="flex items-center gap-2 text-[12.5px] px-3 py-2 rounded-lg" style={{ background: "rgba(225,113,103,0.12)", color: C.danger }}>
+                <AlertTriangle size={14} /> {err}
+              </div>
+            )}
+
+            <Btn type="submit" disabled={busy || !username.trim() || !password}>
+              <Lock size={15} /> {busy ? "Đang kiểm tra…" : "Đăng nhập"}
+            </Btn>
+          </form>
+        </Panel>
+
+        <div className="text-[11px] text-center leading-relaxed" style={{ color: C.muted }}>
+          Tài khoản mặc định — Quản trị: <b style={{ color: C.text }}>admin / admin123</b><br />
+          Nhân viên: <b style={{ color: C.text }}>nhanvien / nhanvien123</b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================== QUẢN LÝ TÀI KHOẢN (CHỈ ADMIN) ============================== */
+function emptyUserForm() {
+  return { ten: "", username: "", password: "", role: "nhanvien", active: true };
+}
+
+function UserManagementScreen({ data, setData, notify, currentUser }) {
+  const [form, setForm] = useState(emptyUserForm());
+  const [editId, setEditId] = useState(null);
+  const [showPw, setShowPw] = useState(false);
+
+  const soAdminHoatDong = data.users.filter((u) => u.role === "admin" && u.active !== false).length;
+
+  const startEdit = (u) => {
+    setEditId(u.id);
+    setForm({ ten: u.ten, username: u.username, password: "", role: u.role, active: u.active !== false });
+    setShowPw(false);
+  };
+  const resetForm = () => { setEditId(null); setForm(emptyUserForm()); setShowPw(false); };
+
+  const submit = () => {
+    const ten = form.ten.trim();
+    const username = form.username.trim().toLowerCase();
+    if (!ten) return notify("Nhập họ tên", "danger");
+    if (!/^[a-z0-9._-]{3,24}$/.test(username)) return notify("Tên đăng nhập chỉ gồm chữ thường/số/. _ - (3-24 ký tự)", "danger");
+
+    const trung = data.users.some((u) => u.username.toLowerCase() === username && u.id !== editId);
+    if (trung) return notify("Tên đăng nhập đã tồn tại", "danger");
+    if (!editId && !form.password) return notify("Nhập mật khẩu cho tài khoản mới", "danger");
+    if (form.password && form.password.length < 4) return notify("Mật khẩu tối thiểu 4 ký tự", "danger");
+
+    if (editId) {
+      const target = data.users.find((u) => u.id === editId);
+      const seMatAdminCuoiCung = target?.role === "admin" && (form.role !== "admin" || form.active === false) && soAdminHoatDong <= 1;
+      if (seMatAdminCuoiCung) return notify("Hệ thống phải còn ít nhất 1 quản trị viên đang hoạt động", "danger");
+      setData((d) => ({
+        ...d,
+        users: d.users.map((u) => (u.id === editId
+          ? { ...u, ten, username, role: form.role, active: form.active !== false, ...(form.password ? { password: form.password } : {}) }
+          : u)),
+      }));
+      notify(`Đã cập nhật tài khoản "${ten}"`);
+    } else {
+      const created = { id: uid(), ten, username, password: form.password, role: form.role, active: form.active !== false };
+      setData((d) => ({ ...d, users: [...d.users, created] }));
+      notify(`Đã tạo tài khoản "${ten}"`);
+    }
+    resetForm();
+  };
+
+  const xoa = (u) => {
+    if (u.id === currentUser.id) return notify("Không thể tự xoá tài khoản đang đăng nhập", "danger");
+    if (u.role === "admin" && u.active !== false && soAdminHoatDong <= 1) return notify("Hệ thống phải còn ít nhất 1 quản trị viên đang hoạt động", "danger");
+    if (!window.confirm(`Xoá tài khoản "${u.ten}" (${u.username})?`)) return;
+    setData((d) => ({ ...d, users: d.users.filter((x) => x.id !== u.id) }));
+    if (editId === u.id) resetForm();
+    notify("Đã xoá tài khoản");
+  };
+
+  const toggleActive = (u) => {
+    if (u.id === currentUser.id) return notify("Không thể tự khoá tài khoản đang đăng nhập", "danger");
+    if (u.role === "admin" && u.active !== false && soAdminHoatDong <= 1) return notify("Hệ thống phải còn ít nhất 1 quản trị viên đang hoạt động", "danger");
+    setData((d) => ({ ...d, users: d.users.map((x) => (x.id === u.id ? { ...x, active: x.active === false ? true : false } : x)) }));
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <h1 className="text-lg font-semibold">Quản lý tài khoản</h1>
+      <p className="text-xs" style={{ color: C.muted }}>
+        Chỉ quản trị viên mới thấy và thao tác được mục này. Tài khoản Nhân viên dùng để đăng nhập vận hành hệ thống hàng ngày;
+        tài khoản Quản trị viên có thêm quyền tạo/sửa/khoá/xoá tài khoản tại đây.
+      </p>
+
+      <Panel title={editId ? "Sửa tài khoản" : "Thêm tài khoản mới"}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Field label="Họ tên">
+            <input className={inputCls} style={inputStyle} value={form.ten} onChange={(e) => setForm({ ...form, ten: e.target.value })} placeholder="VD: Nguyễn Văn A" />
+          </Field>
+          <Field label="Tên đăng nhập">
+            <input className={inputCls} style={inputStyle} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="vd: nhanvien2" />
+          </Field>
+          <Field label={editId ? "Mật khẩu mới (bỏ trống nếu giữ nguyên)" : "Mật khẩu"}>
+            <div className="login-input-wrap">
+              <input type={showPw ? "text" : "password"} className={inputCls} style={{ ...inputStyle, width: "100%" }}
+                value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editId ? "••••••••" : "Tối thiểu 4 ký tự"} />
+              <button type="button" className="login-eye" onClick={() => setShowPw((s) => !s)} tabIndex={-1}>
+                {showPw ? <EyeOff size={15} style={{ color: C.muted }} /> : <Eye size={15} style={{ color: C.muted }} />}
+              </button>
+            </div>
+          </Field>
+          <Field label="Vai trò">
+            <Select value={form.role} onChange={(v) => setForm({ ...form, role: v })}
+              options={[{ value: "nhanvien", label: "Nhân viên" }, { value: "admin", label: "Quản trị viên" }]} />
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-xs mt-3" style={{ color: C.muted }}>
+          <input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+          Tài khoản đang hoạt động (bỏ chọn để khoá đăng nhập)
+        </label>
+        <div className="mt-4 flex gap-2">
+          <Btn onClick={submit}>{editId ? <><CheckCircle2 size={15} /> Lưu thay đổi</> : <><Plus size={15} /> Tạo tài khoản</>}</Btn>
+          {editId && <Btn variant="ghost" onClick={resetForm}>Huỷ</Btn>}
+        </div>
+      </Panel>
+
+      <Panel title={`Danh sách tài khoản (${data.users.length})`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left" style={{ color: C.muted }}>
+                <th className="py-2 pr-4">Họ tên</th><th className="py-2 pr-4">Tên đăng nhập</th>
+                <th className="py-2 pr-4">Vai trò</th><th className="py-2 pr-4">Trạng thái</th><th className="py-2 pr-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.users.map((u) => (
+                <tr key={u.id} className="border-t" style={{ borderColor: C.line }}>
+                  <td className="py-2 pr-4 font-medium">{u.ten} {u.id === currentUser.id && <span style={{ color: C.muted, fontWeight: 400 }}>(bạn)</span>}</td>
+                  <td className="py-2 pr-4" style={{ color: C.muted }}>{u.username}</td>
+                  <td className="py-2 pr-4">
+                    <span className="role-chip" style={{ background: `${(ROLE_INFO[u.role] || {}).color || C.muted}22`, color: (ROLE_INFO[u.role] || {}).color || C.muted }}>
+                      {(ROLE_INFO[u.role] || {}).label || u.role}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4">
+                    <button onClick={() => toggleActive(u)} className="role-chip" style={{ background: u.active === false ? "rgba(225,113,103,0.14)" : "rgba(111,174,124,0.14)", color: u.active === false ? C.danger : C.success, border: 0, cursor: "pointer" }}>
+                      {u.active === false ? "Đã khoá" : "Hoạt động"}
+                    </button>
+                  </td>
+                  <td className="py-2 pr-4">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => startEdit(u)} title="Sửa" style={{ color: C.steel }}><Pencil size={14} /></button>
+                      <button onClick={() => xoa(u)} title="Xoá" style={{ color: C.danger }}><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 /* ============================== MAIN APP ============================== */
 function App() {
   const [data, setData, loading] = usePersistedState();
+  const [session, login, logout] = useSession();
   const [tab, setTab] = useState("dashboard");
   const [poFilter, setPoFilter] = useState("ALL");
   const [toast, setToast] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const notify = useCallback((msg, tone = "success") => {
     setToast({ msg, tone });
     setTimeout(() => setToast(null), 2600);
   }, []);
 
-  if (loading || !data) {
+  const currentUser = (data && session)
+    ? (data.users || []).find((u) => u.id === session.userId && u.active !== false) || null
+    : null;
+
+  useEffect(() => {
+    if (currentUser && currentUser.role !== "admin" && tab === "users") setTab("dashboard");
+  }, [currentUser, tab]);
+
+  if (loading || !data || session === undefined) {
     const Bar = ({ w = "100%", h = 12 }) => (
       <div className="animate-pulse rounded" style={{ width: w, height: h, background: C.panel2 }} />
     );
@@ -964,6 +1415,10 @@ function App() {
     );
   }
 
+  if (!currentUser) {
+    return <LoginScreen users={data.users} onLogin={login} />;
+  }
+
   const activePOs = data.pos.filter((p) => p.trang_thai !== "DA_CHOT" && p.trang_thai !== "HUY");
   const poOptions = data.pos.map((p) => ({ value: p.id, label: `${p.ma_po} — ${p.ten_po}` }));
 
@@ -978,14 +1433,31 @@ function App() {
     { id: "phe", label: "Phế liệu", icon: Trash2 },
     { id: "ton", label: "Tồn BTP", icon: Boxes },
     { id: "chot", label: "Chốt PO", icon: ClipboardCheck },
+    ...(currentUser.role === "admin" ? [{ id: "users", label: "Quản lý tài khoản", icon: Users }] : []),
   ];
 
+  const goTab = (id) => { setTab(id); setDrawerOpen(false); };
+
   return (
-    <div className="min-h-screen w-full flex" style={{ background: C.bg, color: C.text, fontFamily: "Inter, ui-sans-serif, system-ui" }}>
+    <div className="app-shell min-h-screen w-full flex" style={{ background: C.bg, color: C.text, fontFamily: "Inter, ui-sans-serif, system-ui" }}>
+      {/* THANH TRÊN CÙNG CHO DI ĐỘNG */}
+      <div className="app-topbar-mobile px-3 py-2.5 border-b w-full" style={{ borderColor: C.line, background: C.panel }}>
+        <button className="app-hamburger-btn" onClick={() => setDrawerOpen(true)} aria-label="Mở menu">
+          <Menu size={20} style={{ color: C.text }} />
+        </button>
+        <span className="text-[13px] font-semibold truncate" style={{ maxWidth: "60vw" }}>{NAV.find((n) => n.id === tab)?.label}</span>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: C.panel2 }}>
+          <User size={14} style={{ color: C.copper }} />
+        </div>
+      </div>
+
+      {/* LỚP NỀN KHI MỞ MENU (DI ĐỘNG) */}
+      <div className={`app-drawer-backdrop ${drawerOpen ? "open" : ""}`} onClick={() => setDrawerOpen(false)} />
+
       {/* SIDEBAR */}
-      <aside className="w-64 shrink-0 border-r flex flex-col" style={{ borderColor: C.line, background: C.panel }}>
-        <div className="px-5 py-5 border-b" style={{ borderColor: C.line }}>
-          <div className="flex items-center gap-3">
+      <aside className={`app-sidebar w-64 shrink-0 border-r flex flex-col ${drawerOpen ? "open" : ""}`} style={{ borderColor: C.line, background: C.panel }}>
+        <div className="px-5 py-5 border-b flex items-center justify-between" style={{ borderColor: C.line }}>
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${C.copper}, ${C.copperDim})`, boxShadow: "0 4px 14px -4px rgba(214,138,84,0.5)" }}>
               <Factory size={19} color="#1B140F" />
             </div>
@@ -997,13 +1469,16 @@ function App() {
               </div>
             </div>
           </div>
+          <button className="app-hamburger-btn desktop-hide" onClick={() => setDrawerOpen(false)} aria-label="Đóng menu">
+            <X size={18} style={{ color: C.muted }} />
+          </button>
         </div>
         <nav className="flex-1 py-3 px-2.5 flex flex-col gap-0.5 overflow-y-auto">
           {NAV.map((n) => {
             const Icon = n.icon;
             const active = tab === n.id;
             return (
-              <button key={n.id} onClick={() => setTab(n.id)}
+              <button key={n.id} onClick={() => goTab(n.id)}
                 className="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-left transition-all duration-200"
                 style={{
                   color: active ? C.copper : C.muted,
@@ -1016,25 +1491,53 @@ function App() {
             );
           })}
         </nav>
+        <div className="mx-3 mb-3 px-3 py-2.5 rounded-xl flex items-center gap-2.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: C.bg }}>
+            <User size={14} style={{ color: C.copper }} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-semibold truncate">{currentUser.ten}</div>
+            <span className="role-chip" style={{ background: `${(ROLE_INFO[currentUser.role] || {}).color || C.muted}22`, color: (ROLE_INFO[currentUser.role] || {}).color || C.muted }}>
+              {(ROLE_INFO[currentUser.role] || {}).label || currentUser.role}
+            </span>
+          </div>
+          <button onClick={logout} title="Đăng xuất" style={{ color: C.muted, background: "transparent", border: 0, cursor: "pointer", display: "flex" }}>
+            <LogOut size={16} />
+          </button>
+        </div>
         <div className="mx-3 mb-3 px-3 py-2.5 rounded-xl text-[10.5px] leading-relaxed" style={{ background: C.panel2, color: C.muted, border: `1px solid ${C.line}` }}>
           Dữ liệu lưu tự động trên trình duyệt của bạn (localStorage).
         </div>
       </aside>
 
       {/* MAIN */}
-      <main className="flex-1 overflow-y-auto flex flex-col">
-        <div className="sticky top-0 z-10 flex items-center justify-between px-7 py-3.5 border-b backdrop-blur"
+      <main className="flex-1 overflow-y-auto flex flex-col" style={{ minWidth: 0 }}>
+        <div className="app-header-desktop sticky top-0 z-10 flex items-center justify-between px-7 py-3.5 border-b backdrop-blur"
           style={{ borderColor: C.line, background: `${C.bg}E6` }}>
           <div className="flex items-center gap-2 text-[13px]">
             <span style={{ color: C.muted }}>MES</span>
             <ChevronRight size={13} style={{ color: C.muted }} />
             <span className="font-semibold">{NAV.find((n) => n.id === tab)?.label}</span>
           </div>
-          <div className="text-[11.5px] font-medium tabular-nums" style={{ color: C.muted }}>
-            {new Date().toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "2-digit", day: "2-digit" })}
+          <div className="flex items-center gap-4">
+            <div className="text-[11.5px] font-medium tabular-nums" style={{ color: C.muted }}>
+              {new Date().toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "2-digit", day: "2-digit" })}
+            </div>
+            <div className="flex items-center gap-2 pl-4" style={{ borderLeft: `1px solid ${C.line}` }}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: C.panel2 }}>
+                <User size={13} style={{ color: C.copper }} />
+              </div>
+              <div className="leading-tight">
+                <div className="text-[12px] font-semibold">{currentUser.ten}</div>
+                <div className="text-[10px]" style={{ color: C.muted }}>{(ROLE_INFO[currentUser.role] || {}).label || currentUser.role}</div>
+              </div>
+              <button onClick={logout} title="Đăng xuất" style={{ color: C.muted, background: "transparent", border: 0, cursor: "pointer", display: "flex", marginLeft: 6 }}>
+                <LogOut size={15} />
+              </button>
+            </div>
           </div>
         </div>
-        <div className="flex-1 p-7">
+        <div className="app-main-content flex-1 p-7">
         {tab === "dashboard" && (
           <Dashboard data={data} poFilter={poFilter} setPoFilter={setPoFilter} poOptions={poOptions} />
         )}
@@ -1047,6 +1550,9 @@ function App() {
         {tab === "phe" && <PheScreen data={data} setData={setData} activePOs={activePOs} notify={notify} />}
         {tab === "ton" && <TonScreen data={data} />}
         {tab === "chot" && <ChotScreen data={data} setData={setData} notify={notify} />}
+        {tab === "users" && currentUser.role === "admin" && (
+          <UserManagementScreen data={data} setData={setData} notify={notify} currentUser={currentUser} />
+        )}
         </div>
       </main>
 
@@ -2979,16 +3485,50 @@ function SimpleTable({ rows, cols, onDelete, onEdit, deleteLabel = "Xoá dòng n
   );
 }
 
+/* ============================== ERROR BOUNDARY ============================== */
+/* Bọc toàn bộ App: nếu bất kỳ màn hình nào (kể cả sau khi đăng nhập thành công) gặp lỗi runtime,
+   người dùng sẽ thấy thông báo rõ ràng + nút "Tải lại", thay vì một màn hình trắng không lời giải thích
+   (nguyên nhân khiến trước đây tưởng nhầm là "không đăng nhập được"). */
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("App crashed:", error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen w-full flex items-center justify-center p-6" style={{ background: C.bg, color: C.text, fontFamily: "Inter, ui-sans-serif, system-ui" }}>
+          <div className="rounded-2xl border p-6 flex flex-col gap-4" style={{ maxWidth: 480, background: C.panel, borderColor: C.line, boxShadow: C.shadow }}>
+            <div className="flex items-center gap-2" style={{ color: C.danger }}>
+              <AlertTriangle size={18} />
+              <div className="font-semibold text-sm">Đã xảy ra lỗi khi hiển thị ứng dụng</div>
+            </div>
+            <div className="text-[12.5px] leading-relaxed" style={{ color: C.muted, fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
+              {this.state.error && this.state.error.message ? this.state.error.message : String(this.state.error)}
+            </div>
+            <button type="button" className="btn-press rounded-lg px-4 py-2.5 text-sm font-semibold"
+              style={{ background: `linear-gradient(135deg, ${C.copper}, ${C.copperDim})`, color: "#1B140F" }}
+              onClick={() => window.location.reload()}>
+              Tải lại ứng dụng
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /* ============================== MOUNT ============================== */
 const rootEl = document.getElementById("root");
 try {
-  ReactDOM.createRoot(rootEl).render(<App />);
+  ReactDOM.createRoot(rootEl).render(<ErrorBoundary><App /></ErrorBoundary>);
   const fb = document.getElementById("loading-fallback");
   if (fb) setTimeout(() => fb.classList.add("hide"), 250);
 } catch (err) {
   console.error(err);
   const fb = document.getElementById("loading-fallback");
   if (fb) {
+    fb.classList.remove("hide");
     fb.innerHTML =
       '<div style="max-width:560px;text-align:left;color:#E17167;font-family:monospace;font-size:12px;white-space:pre-wrap;">Lỗi khi khởi động ứng dụng:\n' +
       (err && err.message ? err.message : String(err)) +
