@@ -1906,6 +1906,9 @@ function Select({
     className: inputCls,
     style: {
       ...inputStyle,
+      width: "100%",
+      maxWidth: "100%",
+      boxSizing: "border-box",
       opacity: disabled ? 0.5 : 1,
       cursor: disabled ? "not-allowed" : "pointer"
     },
@@ -4415,9 +4418,12 @@ function MaHangScreen({
   }, "Mỗi mã hàng lưu sẵn hệ số quy đổi, đơn vị tính (mét/pcs), luồng công đoạn, định mức NVL và danh sách màu riêng (tên màu, số lượng màu, tỷ lệ % đều khác nhau theo từng mã hàng). Khi tạo PO, chỉ cần chọn mã hàng + nhập số lượng."), /*#__PURE__*/React.createElement(Panel, {
     title: "Chọn mã hàng"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 items-end mb-4"
+    className: "flex gap-2 items-end mb-4 flex-wrap"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1"
+    className: "flex-1",
+    style: {
+      minWidth: 180
+    }
   }, /*#__PURE__*/React.createElement(Field, {
     label: `Mã hàng (${data.maHang.length} mã — gõ để tìm nhanh)`
   }, /*#__PURE__*/React.createElement(Select, {
@@ -4434,12 +4440,13 @@ function MaHangScreen({
   }, /*#__PURE__*/React.createElement(Trash2, {
     size: 14
   }), " Xoá mã hàng này")), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
+    className: "flex gap-2 flex-wrap"
   }, /*#__PURE__*/React.createElement("input", {
     className: inputCls,
     style: {
       ...inputStyle,
-      flex: 1
+      flex: "1 1 220px",
+      minWidth: 0
     },
     placeholder: "Tên mã hàng mới, VD: Cáp dẹt 2x1.5",
     value: newTen,
