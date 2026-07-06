@@ -1,0 +1,17 @@
+{
+  "name": "MES Cáp/Dây điện — Hệ thống điều hành sản xuất",
+  "short_name": "MES Cáp",
+  "description": "Ứng dụng quản lý sản xuất cáp/dây điện: đơn hàng, định mức NVL, kho, BTP, đóng gói, phế liệu, chốt PO.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#11151A",
+  "theme_color": "#11151A",
+  "lang": "vi",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
