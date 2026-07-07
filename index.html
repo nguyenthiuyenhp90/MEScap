@@ -1816,7 +1816,7 @@ const Panel = React.forwardRef(function Panel({
 }, ref) {
   return /*#__PURE__*/React.createElement("div", {
     ref: ref,
-    className: `panel-card rounded-2xl border transition-all duration-300 ${className}`,
+    className: `panel-card rounded-2xl border transition-all duration-300 overflow-hidden ${className}`,
     style: {
       background: `linear-gradient(180deg, ${C.panel} 0%, ${C.panel} 100%)`,
       borderColor: C.line,
@@ -1826,23 +1826,25 @@ const Panel = React.forwardRef(function Panel({
   }, title && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-3 flex-wrap px-5 py-3.5 border-b",
     style: {
-      borderColor: C.line
+      borderColor: `${C.copper}26`,
+      background: `linear-gradient(90deg, ${C.copper}1C 0%, ${C.steel}12 55%, transparent 100%)`
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2.5"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       display: "inline-block",
-      width: 4,
-      height: 14,
+      width: 5,
+      height: 15,
       borderRadius: 3,
       background: `linear-gradient(180deg, ${C.copper}, ${C.copperDim})`,
+      boxShadow: `0 0 0 3px ${C.copper}1A`,
       flexShrink: 0
     }
   }), /*#__PURE__*/React.createElement("h3", {
-    className: "text-[11px] font-semibold tracking-[0.14em] uppercase",
+    className: "text-[11.5px] font-bold tracking-[0.14em] uppercase",
     style: {
-      color: C.muted
+      color: C.copperDim
     }
   }, title)), right), /*#__PURE__*/React.createElement("div", {
     className: "p-5"
