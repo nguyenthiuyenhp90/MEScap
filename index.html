@@ -3150,6 +3150,60 @@ function mucTieuTheoCongDoan(po) {
   return target;
 }
 
+// Suy ra đúng danh sách liên kết "công đoạn nguồn -> công đoạn đích" của luồng THẬT của 1 PO cụ thể,
+// dựa trên chính cấu hình routing của PO đó (bocFrom, dongGoiFrom, xoanTongFrom) — dùng cùng logic
+// rẽ nhánh với mucTieuTheoCongDoan ở trên để 2 nơi luôn khớp nhau. Xử lý đúng cả trường hợp đặc biệt:
+// Xoắn tổng nhận CÙNG LÚC 2 nguồn (Xoắn đôi hoặc Lõi thẳng, VÀ luôn cộng thêm Vách).
+function lienKetCongDoanCuaPO(po) {
+  const links = [];
+  if (po.dongGoiFrom === "LOI") {
+    links.push({
+      nguon: "LOI",
+      dich: "DONG_GOI"
+    });
+    return links; // đóng gói thẳng từ Lõi — bỏ qua toàn bộ các công đoạn còn lại
+  }
+  if (po.xoanTongFrom === "LOI") {
+    links.push({
+      nguon: "LOI",
+      dich: "XOAN_TONG"
+    });
+  } else {
+    links.push({
+      nguon: "LOI",
+      dich: "XOAN_DOI"
+    });
+    links.push({
+      nguon: "XOAN_DOI",
+      dich: "XOAN_TONG"
+    });
+  }
+  links.push({
+    nguon: "VACH",
+    dich: "XOAN_TONG"
+  }); // Xoắn tổng luôn nhận thêm BTP Vách, song song với nguồn Xoắn đôi/Lõi ở trên
+  if (po.bocFrom === "DET") {
+    links.push({
+      nguon: "XOAN_TONG",
+      dich: "DET"
+    });
+    links.push({
+      nguon: "DET",
+      dich: "BOC"
+    });
+  } else {
+    links.push({
+      nguon: "XOAN_TONG",
+      dich: "BOC"
+    });
+  }
+  links.push({
+    nguon: "BOC",
+    dich: "DONG_GOI"
+  });
+  return links;
+}
+
 // Lõi dùng chung: từ 1 đối tượng có hình dạng như PO (ke_hoach_kg, ke_hoach_dvt, don_vi_dau_ra,
 // bocFrom, dongGoiFrom, bom, heSoVachSoVoiXoanDoi) — suy ra mục tiêu kg/mét từng công đoạn VÀ
 // kg NVL cần cấp theo từng mã NVL cụ thể. Dùng được cho cả PO thật lẫn PO giả (ướm từ mã hàng).
@@ -3320,6 +3374,37 @@ function computeForPO(data, poId) {
     name: l,
     value: phe.filter(p => p.loai === l).reduce((s, p) => s + p.kg, 0)
   })).filter(x => x.value > 0);
+
+  // Bảng "Tiến độ theo từng công đoạn" — chỉ liệt kê các công đoạn thực sự đang áp dụng cho PO này
+  // (đã lọc theo apDung, tức nằm trong routing thật của PO), mỗi dòng: Thực tế / Mục tiêu / % hoàn thành.
+  const tienDoCongDoanList = CONG_DOAN.filter(cd => tienDoCongDoan[cd.id].apDung).map(cd => ({
+    congDoanId: cd.id,
+    congDoan: cd.ten,
+    thucTeKg: tienDoCongDoan[cd.id].kg,
+    mucTieuKg: tienDoCongDoan[cd.id].mucTieuKg,
+    pct: Math.min(100, tienDoCongDoan[cd.id].pct)
+  }));
+
+  // Bảng "Liên kết BTP giữa các công đoạn" — tự suy ra đúng luồng thật của PO (kể cả khi Xoắn tổng
+  // nhận cả BTP từ Xoắn đôi/Lõi VÀ Vách cùng lúc), tách rõ 4 cột theo từng liên kết:
+  //   Đã sản xuất tại nguồn -> Phế tại nguồn (hao hụt có ghi nhận) -> Đã chuyển sang đích
+  //   -> Còn tồn dở dang (= sản xuất − phế − đã chuyển; là BTP đang chờ giữa 2 công đoạn, KHÔNG PHẢI hao hụt).
+  const lienKetBTP = lienKetCongDoanCuaPO(po).map(lk => {
+    const sanXuatNguon = kgByStage(lk.nguon);
+    const pheNguon = phe.filter(p => p.cong_doan === lk.nguon).reduce((s, p) => s + (p.kg || 0), 0);
+    const daChuyen = data.tieuThu.filter(t => t.po_id === poId && t.cong_doan_nguon === lk.nguon && t.cong_doan_dich === lk.dich).reduce((s, t) => s + (t.kg || 0), 0);
+    const tonDoDang = Math.max(0, sanXuatNguon - pheNguon - daChuyen);
+    return {
+      nguonId: lk.nguon,
+      dichId: lk.dich,
+      nguon: CD_MAP[lk.nguon]?.ten || lk.nguon,
+      dich: CD_MAP[lk.dich]?.ten || lk.dich,
+      sanXuatNguon,
+      pheNguon,
+      daChuyen,
+      tonDoDang
+    };
+  });
   return {
     po,
     mh,
@@ -3333,12 +3418,21 @@ function computeForPO(data, poId) {
     thucTeNhom,
     hieuSuatNvl,
     tienDoCongDoan,
+    tienDoCongDoanList,
+    lienKetBTP,
     tienDoMauLoi,
     tienDoMauXoanDoi,
     sanLuongTheoNgay,
     pheTheoLoai,
     hoanThanhPct: po.ke_hoach_kg ? tpKg / po.ke_hoach_kg * 100 : 0
   };
+}
+
+// Màu sắc cho %phế theo 3 ngưỡng: ≤3% xanh (tốt), ≤7% vàng (cảnh báo), còn lại đỏ (vượt ngưỡng).
+function toneTyLePhe(pct) {
+  if (pct <= 3) return "success";
+  if (pct <= 7) return "warning";
+  return "danger";
 }
 const CO_MAU = congDoanId => congDoanId === "LOI" || congDoanId === "XOAN_DOI";
 function tonHienTai(data, poId, congDoanId, mauId = null) {
@@ -3587,7 +3681,7 @@ function Dashboard({
     rows: dongGoiTheoPO,
     cols: [["ma_po", "Mã PO"], ["trang_thai", "Trạng thái", v => trangThaiLabel(v)], ["kg", "Kg đã đóng gói", v => fmt(v, 0)], ["mucTieuKg", "Kg mục tiêu", v => fmt(v, 0)], ["dvt", "Đã đóng gói (theo ĐVT)", (v, r) => `${fmt(v, 0)} ${r.dvtLabel}`], ["mucTieuDvt", "Mục tiêu (theo ĐVT)", (v, r) => `${fmt(v, 0)} ${r.dvtLabel}`], ["pct", "% hoàn thành", v => `${fmt(v)}%`]]
   })), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 md:grid-cols-5 gap-4"
+    className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
   }, /*#__PURE__*/React.createElement(KpiCard, {
     label: "Sản lượng TT/KH",
     value: `${fmt(agg.tpKg, 0)}`,
@@ -3602,10 +3696,15 @@ function Dashboard({
     unit: "kg",
     tone: haoHut > 0 ? "danger" : "success"
   }), /*#__PURE__*/React.createElement(KpiCard, {
-    label: "Tỷ lệ phế",
+    label: "Tổng phế",
+    value: fmt(agg.phe, 0),
+    unit: "kg",
+    tone: toneTyLePhe(tyLePhe)
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "% phế",
     value: `${fmt(tyLePhe)}%`,
-    tone: tyLePhe > 5 ? "danger" : "success",
-    sub: tyLePhe > 5 ? "Vượt ngưỡng 5%" : "Trong ngưỡng"
+    tone: toneTyLePhe(tyLePhe),
+    sub: tyLePhe <= 3 ? "Trong ngưỡng tốt (≤3%)" : tyLePhe <= 7 ? "Cần chú ý (≤7%)" : "Vượt ngưỡng (>7%)"
   }), /*#__PURE__*/React.createElement(KpiCard, {
     label: "Hiệu suất NVL",
     value: `${fmt(hieuSuat)}%`,
@@ -6325,15 +6424,17 @@ function ChotScreen({
       label: `${p.ma_po} (${trangThaiLabel(p.trang_thai)})`
     }))
   }))), c && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 md:grid-cols-4 gap-4"
+    className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
   }, /*#__PURE__*/React.createElement(KpiCard, {
     label: "Tổng NVL đã dùng",
     value: fmt(Object.values(c.thucTeNvl).reduce((a, b) => a + b, 0), 0),
     unit: "kg"
   }), /*#__PURE__*/React.createElement(KpiCard, {
-    label: "Tổng thành phẩm",
+    label: "Thực tế / Mục tiêu",
     value: fmt(c.tpKg, 0),
-    unit: "kg"
+    unit: `/ ${fmt(c.po.ke_hoach_kg, 0)} kg`,
+    tone: c.hoanThanhPct >= 100 ? "success" : c.hoanThanhPct >= 80 ? "text" : "warning",
+    sub: `${fmt(c.hoanThanhPct)}% hoàn thành`
   }), /*#__PURE__*/React.createElement(KpiCard, {
     label: `Tổng ${DVT_INFO[c.po.don_vi_dau_ra].label}`,
     value: fmt(c.tpDvt, 0),
@@ -6342,6 +6443,36 @@ function ChotScreen({
     label: "Hiệu suất NVL",
     value: `${fmt(c.hieuSuatNvl)}%`,
     tone: c.hieuSuatNvl >= 95 ? "success" : "warning"
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Tổng phế",
+    value: fmt(c.tongPheKg, 0),
+    unit: "kg",
+    tone: toneTyLePhe(c.tyLePhe)
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "% phế",
+    value: `${fmt(c.tyLePhe)}%`,
+    tone: toneTyLePhe(c.tyLePhe),
+    sub: c.tyLePhe <= 3 ? "Trong ngưỡng tốt (≤3%)" : c.tyLePhe <= 7 ? "Cần chú ý (≤7%)" : "Vượt ngưỡng (>7%)"
+  })), /*#__PURE__*/React.createElement(Panel, {
+    title: "Tiến độ theo từng công đoạn"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs mb-3",
+    style: {
+      color: C.muted
+    }
+  }, "Chỉ liệt kê các công đoạn thực sự nằm trong luồng của PO này (tự suy ra từ Bọc/Đóng gói/Xoắn tổng nhận từ đâu)."), /*#__PURE__*/React.createElement(SimpleTable, {
+    rows: c.tienDoCongDoanList,
+    cols: [["congDoan", "Công đoạn"], ["thucTeKg", "Thực tế (kg)", v => fmt(v, 0)], ["mucTieuKg", "Mục tiêu (kg)", v => fmt(v, 0)], ["pct", "% hoàn thành", v => `${fmt(v)}%`]]
+  })), /*#__PURE__*/React.createElement(Panel, {
+    title: "Liên kết BTP giữa các công đoạn"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs mb-3",
+    style: {
+      color: C.muted
+    }
+  }, "Tự suy ra đúng luồng thật của PO này (kể cả khi Xoắn tổng nhận cùng lúc BTP từ Xoắn đôi/Lõi ", /*#__PURE__*/React.createElement("b", null, "và"), " Vách). ", /*#__PURE__*/React.createElement("b", null, "Phế"), " là hao hụt thật đã ghi nhận cụ thể ở công đoạn nguồn; ", /*#__PURE__*/React.createElement("b", null, "Còn tồn dở dang"), " là phần BTP đã sản xuất nhưng chưa chuyển sang công đoạn tiếp theo (đang chờ), KHÔNG PHẢI hao hụt — không nên nhầm 2 khái niệm này với nhau."), /*#__PURE__*/React.createElement(SimpleTable, {
+    rows: c.lienKetBTP,
+    cols: [["nguon", "Từ công đoạn (nguồn)"], ["dich", "Đến công đoạn (đích)"], ["sanXuatNguon", "Đã sản xuất tại nguồn (kg)", v => fmt(v, 0)], ["pheNguon", "Phế tại nguồn (kg)", v => fmt(v, 0)], ["daChuyen", "Đã chuyển sang đích (kg)", v => fmt(v, 0)], ["tonDoDang", "Còn tồn dở dang (kg)", v => fmt(v, 0)]]
   })), /*#__PURE__*/React.createElement(Panel, {
     title: "Chi tiết NVL theo mã cụ thể"
   }, /*#__PURE__*/React.createElement(SimpleTable, {
