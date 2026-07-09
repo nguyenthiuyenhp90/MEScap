@@ -4326,6 +4326,165 @@ function PoScreen({
 }
 
 /* ============================== MÃ HÀNG & ĐỊNH MỨC SCREEN ============================== */
+// ColorEditor được định nghĩa Ở NGOÀI MaHangScreen (component cấp module, không lồng bên trong
+// một component khác) — bắt buộc, vì nếu định nghĩa lồng bên trong MaHangScreen thì mỗi lần
+// MaHangScreen render lại (VD: gõ 1 ký tự vào ô tên màu -> setState -> render lại), React sẽ tạo ra
+// một "kiểu component" ColorEditor hoàn toàn mới (dù cùng tên), khiến React coi toàn bộ cây con này
+// là component khác -> unmount cây cũ (mất focus + input bị "văng ra") rồi mount lại cây mới ngay
+// sau mỗi phím gõ. Định nghĩa ở ngoài (module scope) giữ nguyên identity của component qua mỗi lần
+// render, nên input giữ được focus khi gõ.
+const ColorEditor = ({
+  label,
+  list,
+  soLuongUom,
+  onAddColor,
+  onEditColor,
+  onRemoveColor
+}) => {
+  const tongTyLe = list.reduce((s, c) => s + (Number(c.ty_le_pct) || 0), 0);
+  const tongMet = list.reduce((s, c) => s + (Number(c.so_met) || 0), 0);
+  const coNhapMet = list.some(c => Number(c.so_met) > 0);
+  const soLuongDuKien = Number(soLuongUom) || 0;
+  const lechMet = coNhapMet ? Math.abs(tongMet - soLuongDuKien) : 0;
+  return /*#__PURE__*/React.createElement(Panel, {
+    title: label,
+    right: /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-col items-end gap-0.5 text-xs"
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: Math.round(tongTyLe) === 100 ? C.success : C.warning
+      }
+    }, "Tổng tỷ lệ: ", fmt(tongTyLe), "%", Math.round(tongTyLe) !== 100 && " (nên = 100%)"), coNhapMet && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: lechMet < 0.5 ? C.success : C.warning
+      }
+    }, "Tổng mét đã nhập: ", fmt(tongMet), " / dự kiến ", fmt(soLuongDuKien), " mét", lechMet >= 0.5 && ` (lệch ${fmt(lechMet)})`))
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs mb-3",
+    style: {
+      color: C.muted
+    }
+  }, "3 cách nhập mục tiêu cho mỗi màu, cách trên luôn ưu tiên hơn cách dưới nếu có nhập nhiều hơn 1: ", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.text
+    }
+  }, "① Kg mục tiêu"), " — nhập thẳng số kg đúng từ bảng kế hoạch thật (VD copy từ Excel) → ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.success
+    }
+  }, "chính xác 100%"), ", không suy đoán gì cả. ", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.text
+    }
+  }, "② Số mét"), " — nhập số mét cần → hệ thống suy ra kg bằng 1 hệ số kg/mét ", /*#__PURE__*/React.createElement("b", null, "bình quân cho cả mã hàng"), ", nên chỉ là ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.warning
+    }
+  }, "ước tính"), " (sẽ lệch nếu các màu có cỡ dây/hệ số khác nhau). ", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.text
+    }
+  }, "③ Tỷ lệ %"), " — chia đều theo % khai báo, dùng khi chưa có số liệu cụ thể nào."), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-2"
+  }, list.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    className: "color-row-card",
+    style: {
+      background: C.panel2,
+      border: `1px solid ${C.line}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "color-row-top"
+  }, /*#__PURE__*/React.createElement("input", {
+    className: inputCls,
+    style: {
+      ...inputStyle,
+      background: C.panel,
+      width: "100%"
+    },
+    placeholder: "Tên màu",
+    value: c.ten,
+    onChange: e => onEditColor(c.id, {
+      ten: e.target.value
+    })
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onRemoveColor(c.id),
+    title: "Xoá màu này",
+    className: "color-row-del",
+    style: {
+      color: C.danger
+    }
+  }, /*#__PURE__*/React.createElement(Trash2, {
+    size: 16
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "color-row-fields"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "color-field"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "color-field-label",
+    style: {
+      color: C.muted
+    }
+  }, "Kg mục tiêu (chính xác)"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    className: inputCls,
+    style: {
+      ...inputStyle,
+      width: "100%"
+    },
+    placeholder: "0",
+    value: c.target_kg ?? "",
+    onChange: e => onEditColor(c.id, {
+      target_kg: e.target.value === "" ? "" : Number(e.target.value)
+    })
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "color-field"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "color-field-label",
+    style: {
+      color: C.muted
+    }
+  }, "Số mét (ước tính)"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    className: inputCls,
+    style: {
+      ...inputStyle,
+      width: "100%"
+    },
+    placeholder: "0",
+    value: c.so_met ?? "",
+    onChange: e => onEditColor(c.id, {
+      so_met: e.target.value === "" ? "" : Number(e.target.value)
+    })
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "color-field"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "color-field-label",
+    style: {
+      color: C.muted
+    }
+  }, "Tỷ lệ %"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    className: inputCls,
+    style: {
+      ...inputStyle,
+      width: "100%"
+    },
+    value: c.ty_le_pct,
+    onChange: e => onEditColor(c.id, {
+      ty_le_pct: Number(e.target.value) || 0
+    })
+  })))))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: onAddColor
+  }, /*#__PURE__*/React.createElement(Plus, {
+    size: 14
+  }), " Thêm màu")));
+};
 function MaHangScreen({
   data,
   setData,
@@ -4464,156 +4623,6 @@ function MaHangScreen({
     ...c,
     ...patch
   } : c));
-  const ColorEditor = ({
-    label,
-    dataKey
-  }) => {
-    const list = mh[dataKey] || [];
-    const tongTyLe = list.reduce((s, c) => s + (Number(c.ty_le_pct) || 0), 0);
-    const tongMet = list.reduce((s, c) => s + (Number(c.so_met) || 0), 0);
-    const coNhapMet = list.some(c => Number(c.so_met) > 0);
-    const dungMet = mh.don_vi_dau_ra === "MET";
-    const soLuongDuKien = Number(soLuongUom) || 0;
-    const lechMet = dungMet && coNhapMet ? Math.abs(tongMet - soLuongDuKien) : 0;
-    return /*#__PURE__*/React.createElement(Panel, {
-      title: label,
-      right: /*#__PURE__*/React.createElement("div", {
-        className: "flex flex-col items-end gap-0.5 text-xs"
-      }, /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: Math.round(tongTyLe) === 100 ? C.success : C.warning
-        }
-      }, "Tổng tỷ lệ: ", fmt(tongTyLe), "%", Math.round(tongTyLe) !== 100 && " (nên = 100%)"), dungMet && coNhapMet && /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: lechMet < 0.5 ? C.success : C.warning
-        }
-      }, "Tổng mét đã nhập: ", fmt(tongMet), " / dự kiến ", fmt(soLuongDuKien), " mét", lechMet >= 0.5 && ` (lệch ${fmt(lechMet)})`))
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-xs mb-3",
-      style: {
-        color: C.muted
-      }
-    }, "3 cách nhập mục tiêu cho mỗi màu, cách trên luôn ưu tiên hơn cách dưới nếu có nhập nhiều hơn 1: ", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("b", {
-      style: {
-        color: C.text
-      }
-    }, "① Kg mục tiêu"), " — nhập thẳng số kg đúng từ bảng kế hoạch thật (VD copy từ Excel) → ", /*#__PURE__*/React.createElement("b", {
-      style: {
-        color: C.success
-      }
-    }, "chính xác 100%"), ", không suy đoán gì cả. ", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("b", {
-      style: {
-        color: C.text
-      }
-    }, "② Số mét"), " ", dungMet ? "— nhập số mét cần" : "(không áp dụng vì mã hàng này không tính theo mét)", " → hệ thống suy ra kg bằng 1 hệ số kg/mét ", /*#__PURE__*/React.createElement("b", null, "bình quân cho cả mã hàng"), ", nên chỉ là ", /*#__PURE__*/React.createElement("b", {
-      style: {
-        color: C.warning
-      }
-    }, "ước tính"), " (sẽ lệch nếu các màu có cỡ dây/hệ số khác nhau). ", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("b", {
-      style: {
-        color: C.text
-      }
-    }, "③ Tỷ lệ %"), " — chia đều theo % khai báo, dùng khi chưa có số liệu cụ thể nào."), /*#__PURE__*/React.createElement("div", {
-      className: "flex flex-col gap-2"
-    }, list.map(c => /*#__PURE__*/React.createElement("div", {
-      key: c.id,
-      className: "color-row-card",
-      style: {
-        background: C.panel2,
-        border: `1px solid ${C.line}`
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "color-row-top"
-    }, /*#__PURE__*/React.createElement("input", {
-      className: inputCls,
-      style: {
-        ...inputStyle,
-        background: C.panel,
-        width: "100%"
-      },
-      placeholder: "Tên màu",
-      value: c.ten,
-      onChange: e => editColor(dataKey, c.id, {
-        ten: e.target.value
-      })
-    }), /*#__PURE__*/React.createElement("button", {
-      onClick: () => removeColor(dataKey, c.id),
-      title: "Xoá màu này",
-      className: "color-row-del",
-      style: {
-        color: C.danger
-      }
-    }, /*#__PURE__*/React.createElement(Trash2, {
-      size: 16
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "color-row-fields"
-    }, /*#__PURE__*/React.createElement("label", {
-      className: "color-field"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "color-field-label",
-      style: {
-        color: C.muted
-      }
-    }, "Kg mục tiêu (chính xác)"), /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      min: "0",
-      className: inputCls,
-      style: {
-        ...inputStyle,
-        width: "100%"
-      },
-      placeholder: "0",
-      value: c.target_kg ?? "",
-      onChange: e => editColor(dataKey, c.id, {
-        target_kg: e.target.value === "" ? "" : Number(e.target.value)
-      })
-    })), dungMet && /*#__PURE__*/React.createElement("label", {
-      className: "color-field"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "color-field-label",
-      style: {
-        color: C.muted
-      }
-    }, "Số mét (ước tính)"), /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      min: "0",
-      className: inputCls,
-      style: {
-        ...inputStyle,
-        width: "100%"
-      },
-      placeholder: "0",
-      value: c.so_met ?? "",
-      onChange: e => editColor(dataKey, c.id, {
-        so_met: e.target.value === "" ? "" : Number(e.target.value)
-      })
-    })), /*#__PURE__*/React.createElement("label", {
-      className: "color-field"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "color-field-label",
-      style: {
-        color: C.muted
-      }
-    }, "Tỷ lệ %"), /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      className: inputCls,
-      style: {
-        ...inputStyle,
-        width: "100%"
-      },
-      value: c.ty_le_pct,
-      onChange: e => editColor(dataKey, c.id, {
-        ty_le_pct: Number(e.target.value) || 0
-      })
-    })))))), /*#__PURE__*/React.createElement("div", {
-      className: "mt-3"
-    }, /*#__PURE__*/React.createElement(Btn, {
-      variant: "ghost",
-      onClick: () => addColor(dataKey)
-    }, /*#__PURE__*/React.createElement(Plus, {
-      size: 14
-    }), " Thêm màu")));
-  };
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-5"
   }, /*#__PURE__*/React.createElement("h1", {
@@ -4801,10 +4810,18 @@ function MaHangScreen({
     }
   }, "Dùng để ước tính khối lượng Lõi mục tiêu (Xoắn tổng = Xoắn đôi + Vách). Mặc định 0.4 nghĩa là Vách ≈ 40% khối lượng phần từ Lõi.")))), /*#__PURE__*/React.createElement(ColorEditor, {
     label: "Danh sách màu Lõi (tên + tỷ lệ %) — thêm đúng số màu và đặt tên theo mã hàng này, không có sẵn mặc định",
-    dataKey: "mauLoi"
+    list: mh.mauLoi || [],
+    soLuongUom: mh.don_vi_dau_ra === "MET" ? soLuongUom : 0,
+    onAddColor: () => addColor("mauLoi"),
+    onEditColor: (id, patch) => editColor("mauLoi", id, patch),
+    onRemoveColor: id => removeColor("mauLoi", id)
   }), mh.xoanTongFrom !== "LOI" && /*#__PURE__*/React.createElement(ColorEditor, {
     label: "Danh sách cặp màu Xoắn đôi (tên + tỷ lệ %) — thêm đúng số màu và đặt tên theo mã hàng này, không có sẵn mặc định",
-    dataKey: "mauXoanDoi"
+    list: mh.mauXoanDoi || [],
+    soLuongUom: mh.don_vi_dau_ra === "MET" ? soLuongUom : 0,
+    onAddColor: () => addColor("mauXoanDoi"),
+    onEditColor: (id, patch) => editColor("mauXoanDoi", id, patch),
+    onRemoveColor: id => removeColor("mauXoanDoi", id)
   }), /*#__PURE__*/React.createElement(Panel, {
     title: "Định mức theo công đoạn — mỗi công đoạn cần chạy bao nhiêu kg / mét"
   }, /*#__PURE__*/React.createElement("p", {
