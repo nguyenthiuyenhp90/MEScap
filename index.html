@@ -2640,6 +2640,8 @@ var qrcode = function() {
 }));
 
 </script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
   window.addEventListener("error", function (e) {
     var fb = document.getElementById("loading-fallback");
@@ -2917,6 +2919,58 @@ var qrcode = function() {
   @media (min-width: 861px) {
     .app-hamburger-btn.desktop-hide { display: none !important; }
   }
+
+  /* ---- Đồng bộ / trạng thái ---- */
+  .sync-badge-btn { transition: filter 0.15s ease, transform 0.1s ease; }
+  .sync-badge-btn:hover { filter: brightness(1.08); }
+  .sync-badge-btn:active { transform: scale(0.97); }
+
+  /* ---- Trạm cân: sub-tab segmented control ---- */
+  .tc-subtabs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tc-subtab-btn { flex: 1 1 auto; min-width: 0; }
+  .tc-subtab-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 640px) {
+    .tc-subtabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .tc-subtab-btn { padding-left: 6px !important; padding-right: 6px !important; }
+  }
+
+  /* ---- Trạm cân: khối hiển thị số cân kiểu màn hình cân điện tử ---- */
+  .tc-scale-readout {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+
+  /* ---- Trạm cân: lưới thông tin (thay cho các dòng flex-wrap dễ vỡ chữ) ---- */
+  .tc-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+  }
+  @media (min-width: 640px) {
+    .tc-info-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .tc-info-item { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .tc-info-item .tc-info-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #6B7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tc-info-item .tc-info-value {
+    font-size: 13px; font-weight: 700; overflow-wrap: break-word; word-break: break-word; line-height: 1.35;
+  }
+
+  /* ---- Trạm cân: lịch sử — bảng cho desktop, thẻ cho mobile ---- */
+  .tc-history-table-wrap { display: block; }
+  .tc-history-cards { display: none; }
+  @media (max-width: 860px) {
+    .tc-history-table-wrap { display: none; }
+    .tc-history-cards { display: flex; flex-direction: column; gap: 10px; }
+  }
+  .tc-history-card { border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .tc-history-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+  .tc-history-card-id { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .tc-history-card-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -2928,7 +2982,8 @@ const {
   useState,
   useEffect,
   useMemo,
-  useCallback
+  useCallback,
+  useRef
 } = React;
 const {
   BarChart,
@@ -3049,6 +3104,157 @@ window.storage = {
     }
   }
 };
+
+/* ============================== FIREBASE REALTIME SYNC ==============================
+   Đồng bộ dữ liệu MES theo thời gian thực giữa nhiều thiết bị/trình duyệt bằng
+   Firebase Realtime Database. Mỗi "phòng đồng bộ" (mã phòng) tương ứng với 1 nhánh
+   dữ liệu dùng chung — mọi thiết bị nhập cùng cấu hình Firebase + cùng mã phòng sẽ
+   thấy dữ liệu của nhau gần như tức thời, không cần máy chủ riêng.
+====================================================================================== */
+const FirebaseSync = (function () {
+  const CFG_KEY = "mes-cap-firebase-config";
+  const DEVICE_KEY = "mes-cap-device-id";
+  let app = null;
+  let dbRef = null;
+  let status = "disconnected"; // disconnected | connecting | connected | error
+  let lastError = "";
+  let listeners = new Set();
+  let remoteHandler = null;
+  let currentConfig = null;
+
+  const deviceId = (() => {
+    try {
+      let id = localStorage.getItem(DEVICE_KEY);
+      if (!id) {
+        id = "dev-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        localStorage.setItem(DEVICE_KEY, id);
+      }
+      return id;
+    } catch {
+      return "dev-" + Math.random().toString(36).slice(2, 10);
+    }
+  })();
+
+  function emit() {
+    listeners.forEach(fn => {
+      try { fn({ status, error: lastError, config: currentConfig }); } catch {}
+    });
+  }
+
+  function setStatus(s, err) {
+    status = s;
+    lastError = err || "";
+    emit();
+  }
+
+  function getConfig() {
+    if (currentConfig) return currentConfig;
+    try {
+      const raw = localStorage.getItem(CFG_KEY);
+      currentConfig = raw ? JSON.parse(raw) : null;
+    } catch {
+      currentConfig = null;
+    }
+    return currentConfig;
+  }
+
+  function saveConfig(cfg) {
+    currentConfig = cfg;
+    try {
+      if (cfg) localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+      else localStorage.removeItem(CFG_KEY);
+    } catch {}
+  }
+
+  function isConfigured() {
+    const c = getConfig();
+    return !!(c && c.databaseURL && c.apiKey && c.roomCode);
+  }
+
+  function disconnect() {
+    try {
+      if (dbRef && remoteHandler) dbRef.off("value", remoteHandler);
+    } catch {}
+    dbRef = null;
+    remoteHandler = null;
+    if (app) {
+      try { app.delete(); } catch {}
+    }
+    app = null;
+    setStatus("disconnected");
+  }
+
+  function connect(onRemoteUpdate) {
+    const cfg = getConfig();
+    if (!cfg || !cfg.databaseURL || !cfg.apiKey || !cfg.roomCode) {
+      setStatus("disconnected");
+      return false;
+    }
+    if (typeof firebase === "undefined") {
+      setStatus("error", "Không tải được thư viện Firebase (kiểm tra kết nối Internet).");
+      return false;
+    }
+    try {
+      disconnect();
+      setStatus("connecting");
+      const appName = "mes-cap-sync-" + Date.now();
+      app = firebase.initializeApp({
+        apiKey: cfg.apiKey,
+        authDomain: cfg.authDomain || undefined,
+        databaseURL: cfg.databaseURL,
+        projectId: cfg.projectId || undefined,
+        appId: cfg.appId || undefined
+      }, appName);
+      const db = firebase.database(app);
+      const roomPath = "mes_rooms/" + encodeURIComponent(cfg.roomCode) + "/state";
+      dbRef = db.ref(roomPath);
+      remoteHandler = snap => {
+        const val = snap.val();
+        setStatus("connected");
+        if (val && val.payload && val.deviceId !== deviceId) {
+          onRemoteUpdate && onRemoteUpdate(val);
+        }
+      };
+      dbRef.on("value", remoteHandler, err => {
+        setStatus("error", (err && err.message) || "Lỗi kết nối Firebase");
+      });
+      // Firebase báo trạng thái mạng của SDK (không phải trạng thái phòng)
+      db.ref(".info/connected").on("value", s => {
+        if (s.val() === true && status !== "error") setStatus("connected");
+      });
+      return true;
+    } catch (e) {
+      setStatus("error", (e && e.message) || String(e));
+      return false;
+    }
+  }
+
+  function push(jsonString) {
+    if (!dbRef) return Promise.resolve(false);
+    return dbRef.set({
+      payload: jsonString,
+      deviceId,
+      updatedAt: (typeof firebase !== "undefined" && firebase.database && firebase.database.ServerValue)
+        ? firebase.database.ServerValue.TIMESTAMP
+        : Date.now()
+    }).then(() => true).catch(e => {
+      setStatus("error", (e && e.message) || String(e));
+      return false;
+    });
+  }
+
+  function subscribe(fn) {
+    listeners.add(fn);
+    fn({ status, error: lastError, config: currentConfig });
+    return () => listeners.delete(fn);
+  }
+
+  return {
+    getConfig, saveConfig, isConfigured, connect, disconnect, push, subscribe,
+    getDeviceId: () => deviceId,
+    getStatus: () => status
+  };
+})();
 
 /* ============================== ICON SET (thay thế lucide-react cho bản web độc lập) ============================== */
 function IconBase({
@@ -3440,6 +3646,29 @@ function Pencil(props) {
     d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
   }), /*#__PURE__*/React.createElement("path", {
     d: "m15 5 4 4"
+  }));
+}
+function CloudIcon(props) {
+  return /*#__PURE__*/React.createElement(IconBase, props, /*#__PURE__*/React.createElement("path", {
+    d: "M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.3-2A5 5 0 0 0 6 18h11.5Z"
+  }));
+}
+function CloudOffIcon(props) {
+  return /*#__PURE__*/React.createElement(IconBase, props, /*#__PURE__*/React.createElement("path", {
+    d: "M4 4l16 16"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M9.5 5.1A6 6 0 0 1 17.5 10a4.5 4.5 0 0 1 1 8.9"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M6.3 8.3A5 5 0 0 0 7 18h9"
+  }));
+}
+function RefreshCwIcon(props) {
+  return /*#__PURE__*/React.createElement(IconBase, props, /*#__PURE__*/React.createElement("path", {
+    d: "M21 12a9 9 0 0 1-15.3 6.4M3 12a9 9 0 0 1 15.3-6.4"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M21 3v6h-6"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M3 21v-6h6"
   }));
 }
 
@@ -4147,6 +4376,12 @@ function seedData() {
 function usePersistedState() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [syncState, setSyncState] = useState({ status: "disconnected", error: "", config: null });
+  const skipNextPushRef = useRef(false);
+  const localRevRef = useRef(0);
+  const remoteRevRef = useRef(-1);
+
+  // Tải dữ liệu cục bộ (localStorage) trước — luôn hoạt động kể cả khi mất mạng
   useEffect(() => {
     (async () => {
       try {
@@ -4159,14 +4394,63 @@ function usePersistedState() {
       }
     })();
   }, []);
+
+  // Lưu cục bộ (debounce) + đẩy lên Firebase nếu đã bật đồng bộ
   useEffect(() => {
     if (!data) return;
     const t = setTimeout(() => {
       window.storage.set("mes-cap-demo-state", JSON.stringify(data)).catch(() => {});
+      if (skipNextPushRef.current) {
+        // Thay đổi này đến từ dữ liệu vừa nhận từ thiết bị khác — không đẩy ngược lại
+        skipNextPushRef.current = false;
+        return;
+      }
+      if (FirebaseSync.isConfigured()) {
+        FirebaseSync.push(JSON.stringify(data));
+      }
     }, 300);
     return () => clearTimeout(t);
   }, [data]);
-  return [data, setData, loading];
+
+  // Kết nối / lắng nghe thay đổi thời gian thực từ các thiết bị khác
+  useEffect(() => {
+    const unsub = FirebaseSync.subscribe(s => setSyncState(s));
+    if (FirebaseSync.isConfigured()) {
+      FirebaseSync.connect(remoteVal => {
+        try {
+          const remoteData = migrateData(JSON.parse(remoteVal.payload));
+          skipNextPushRef.current = true;
+          setData(remoteData);
+        } catch (e) {
+          console.warn("Không đọc được dữ liệu đồng bộ từ Firebase:", e);
+        }
+      });
+    }
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const reconnectSync = useCallback((cfg) => {
+    if (cfg !== undefined) FirebaseSync.saveConfig(cfg);
+    if (FirebaseSync.isConfigured()) {
+      FirebaseSync.connect(remoteVal => {
+        try {
+          const remoteData = migrateData(JSON.parse(remoteVal.payload));
+          skipNextPushRef.current = true;
+          setData(remoteData);
+        } catch (e) {
+          console.warn("Không đọc được dữ liệu đồng bộ từ Firebase:", e);
+        }
+      });
+      // Đẩy ngay dữ liệu hiện tại lên phòng đồng bộ để các thiết bị khác thấy luôn
+      if (data) FirebaseSync.push(JSON.stringify(data));
+    } else {
+      FirebaseSync.disconnect();
+    }
+  }, [data]);
+
+  return [data, setData, loading, syncState, reconnectSync];
 }
 
 /* ============================== SMALL UI PARTS ============================== */
@@ -4416,6 +4700,181 @@ function StatusPill({
       color
     }
   }, children);
+}
+
+/* ============================== ĐỒNG BỘ THỜI GIAN THỰC (FIREBASE) ============================== */
+const SYNC_META = {
+  connected: { label: "Đã đồng bộ", color: "#20895A", icon: CloudIcon, pulse: false },
+  connecting: { label: "Đang kết nối…", color: "#B8790E", icon: RefreshCwIcon, pulse: true },
+  error: { label: "Lỗi đồng bộ", color: "#D33F3F", icon: CloudOffIcon, pulse: false },
+  disconnected: { label: "Chưa bật đồng bộ", color: "#6B7280", icon: CloudOffIcon, pulse: false }
+};
+function SyncStatusBadge({ syncState, onClick, compact }) {
+  const meta = SYNC_META[syncState.status] || SYNC_META.disconnected;
+  const Icon = meta.icon;
+  return /*#__PURE__*/React.createElement("button", {
+    onClick,
+    title: syncState.config && syncState.config.roomCode ? `Phòng đồng bộ: ${syncState.config.roomCode}` : "Bật đồng bộ nhiều thiết bị",
+    className: "sync-badge-btn",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      background: `${meta.color}16`,
+      color: meta.color,
+      border: `1px solid ${meta.color}33`,
+      borderRadius: 999,
+      padding: compact ? "5px 9px" : "6px 12px",
+      fontSize: compact ? 11 : 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    size: compact ? 13 : 14,
+    style: meta.pulse ? { animation: "spin 1.1s linear infinite" } : undefined
+  }), !compact && /*#__PURE__*/React.createElement("span", null, meta.label));
+}
+
+function SyncSettingsModal({ open, onClose, syncState, onSave, readOnly }) {
+  const existing = (syncState && syncState.config) || {};
+  const [apiKey, setApiKey] = useState(existing.apiKey || "");
+  const [authDomain, setAuthDomain] = useState(existing.authDomain || "");
+  const [databaseURL, setDatabaseURL] = useState(existing.databaseURL || "");
+  const [projectId, setProjectId] = useState(existing.projectId || "");
+  const [appId, setAppId] = useState(existing.appId || "");
+  const [roomCode, setRoomCode] = useState(existing.roomCode || "");
+  useEffect(() => {
+    if (open) {
+      const c = (syncState && syncState.config) || {};
+      setApiKey(c.apiKey || "");
+      setAuthDomain(c.authDomain || "");
+      setDatabaseURL(c.databaseURL || "");
+      setProjectId(c.projectId || "");
+      setAppId(c.appId || "");
+      setRoomCode(c.roomCode || "");
+    }
+  }, [open]);
+  if (!open) return null;
+  const meta = SYNC_META[syncState.status] || SYNC_META.disconnected;
+  const canSave = apiKey.trim() && databaseURL.trim() && roomCode.trim();
+  const handleSave = () => {
+    onSave({
+      apiKey: apiKey.trim(),
+      authDomain: authDomain.trim(),
+      databaseURL: databaseURL.trim(),
+      projectId: projectId.trim(),
+      appId: appId.trim(),
+      roomCode: roomCode.trim()
+    });
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "sync-modal-backdrop",
+    onClick: onClose,
+    style: {
+      position: "fixed", inset: 0, zIndex: 60,
+      background: "rgba(20,22,26,0.5)",
+      backdropFilter: "blur(2px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    className: "sync-modal-card",
+    style: {
+      background: C.panel,
+      borderRadius: 20,
+      border: `1px solid ${C.line}`,
+      boxShadow: "0 24px 64px -16px rgba(16,24,40,0.35)",
+      width: "100%", maxWidth: 480,
+      maxHeight: "90vh", overflowY: "auto"
+    }
+  },
+    /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between gap-3 px-5 py-4 border-b",
+      style: { borderColor: C.line, background: `linear-gradient(90deg, ${C.copper}1C 0%, ${C.steel}12 60%, transparent 100%)` }
+    },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2.5 min-w-0" },
+        /*#__PURE__*/React.createElement("div", {
+          className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+          style: { background: `linear-gradient(135deg, ${C.copper}, ${C.copperDim})` }
+        }, /*#__PURE__*/React.createElement(CloudIcon, { size: 17, color: "#1B140F" })),
+        /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
+          /*#__PURE__*/React.createElement("div", { className: "text-[14px] font-bold truncate" }, "Đồng bộ thời gian thực"),
+          /*#__PURE__*/React.createElement("div", { className: "text-[11px] truncate", style: { color: C.muted } }, "Kết nối nhiều thiết bị bằng Firebase")
+        )
+      ),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: onClose, "aria-label": "Đóng",
+        style: { color: C.muted, background: "transparent", border: 0, cursor: "pointer", display: "flex", flexShrink: 0 }
+      }, /*#__PURE__*/React.createElement(X, { size: 18 }))
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "px-5 py-4 flex flex-col gap-4" },
+      /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-semibold",
+        style: { background: `${meta.color}14`, color: meta.color }
+      }, /*#__PURE__*/React.createElement(meta.icon, { size: 14 }), meta.label, syncState.error ? ` — ${syncState.error}` : ""),
+      readOnly ? /*#__PURE__*/React.createElement("div", { className: "text-[11.5px] leading-relaxed", style: { color: C.muted } },
+        "Đồng bộ nhiều thiết bị được cấu hình bởi Quản trị viên. ",
+        syncState.config && syncState.config.roomCode ? `Thiết bị này đang thuộc phòng đồng bộ "${syncState.config.roomCode}".` : "Hiện chưa có phòng đồng bộ nào được thiết lập."
+      ) : /*#__PURE__*/React.createElement(React.Fragment, null,
+      /*#__PURE__*/React.createElement("div", { className: "text-[11.5px] leading-relaxed", style: { color: C.muted } },
+        "Nhập thông tin cấu hình Firebase Realtime Database (mục Project settings → SDK setup trên console Firebase) và đặt một ",
+        /*#__PURE__*/React.createElement("b", null, "Mã phòng đồng bộ"), " giống nhau trên mọi thiết bị cần dùng chung dữ liệu."
+      ),
+      /*#__PURE__*/React.createElement(Field, { label: "Mã phòng đồng bộ *" },
+        /*#__PURE__*/React.createElement("input", {
+          className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+          value: roomCode, placeholder: "VD: nha-may-1",
+          onChange: e => setRoomCode(e.target.value)
+        })
+      ),
+      /*#__PURE__*/React.createElement(Field, { label: "API Key *" },
+        /*#__PURE__*/React.createElement("input", {
+          className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+          value: apiKey, onChange: e => setApiKey(e.target.value)
+        })
+      ),
+      /*#__PURE__*/React.createElement(Field, { label: "Database URL *" },
+        /*#__PURE__*/React.createElement("input", {
+          className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+          value: databaseURL, placeholder: "https://ten-du-an-default-rtdb.asia-southeast1.firebasedatabase.app",
+          onChange: e => setDatabaseURL(e.target.value)
+        })
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+        /*#__PURE__*/React.createElement(Field, { label: "Auth Domain" },
+          /*#__PURE__*/React.createElement("input", {
+            className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+            value: authDomain, onChange: e => setAuthDomain(e.target.value)
+          })
+        ),
+        /*#__PURE__*/React.createElement(Field, { label: "Project ID" },
+          /*#__PURE__*/React.createElement("input", {
+            className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+            value: projectId, onChange: e => setProjectId(e.target.value)
+          })
+        )
+      ),
+      /*#__PURE__*/React.createElement(Field, { label: "App ID" },
+        /*#__PURE__*/React.createElement("input", {
+          className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+          value: appId, onChange: e => setAppId(e.target.value)
+        })
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
+        /*#__PURE__*/React.createElement(Btn, { onClick: handleSave, disabled: !canSave }, /*#__PURE__*/React.createElement(CloudIcon, { size: 15 }), " Lưu & kết nối"),
+        (syncState.config) && /*#__PURE__*/React.createElement(Btn, { variant: "danger", onClick: () => onSave(null) }, /*#__PURE__*/React.createElement(CloudOffIcon, { size: 15 }), " Ngắt đồng bộ"),
+        /*#__PURE__*/React.createElement(Btn, { variant: "ghost", onClick: onClose }, "Đóng")
+      ),
+      /*#__PURE__*/React.createElement("div", {
+        className: "text-[10.5px] leading-relaxed px-3 py-2.5 rounded-lg",
+        style: { background: C.panel2, color: C.muted }
+      }, "Mẹo: tạo Realtime Database ở chế độ test, hoặc đặt rule read/write theo mã phòng để bảo mật hơn. Dữ liệu vẫn luôn được lưu cục bộ (localStorage) trên từng thiết bị để dùng offline.")
+      )
+    )
+  ));
 }
 
 /* ============================== PIPELINE SIGNATURE ============================== */
@@ -4946,12 +5405,13 @@ function UserManagementScreen({
 
 /* ============================== MAIN APP ============================== */
 function App() {
-  const [data, setData, loading] = usePersistedState();
+  const [data, setData, loading, syncState, reconnectSync] = usePersistedState();
   const [session, login, logout] = useSession();
   const [tab, setTab] = useState("dashboard");
   const [poFilter, setPoFilter] = useState("ALL");
   const [toast, setToast] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
   const notify = useCallback((msg, tone = "success") => {
     setToast({
       msg,
@@ -5127,9 +5587,15 @@ function App() {
   })), /*#__PURE__*/React.createElement("span", {
     className: "text-[13px] font-semibold truncate",
     style: {
-      maxWidth: "60vw"
+      maxWidth: "42vw"
     }
   }, NAV.find(n => n.id === tab)?.label), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 shrink-0"
+  }, /*#__PURE__*/React.createElement(SyncStatusBadge, {
+    syncState: syncState,
+    onClick: () => setSyncModalOpen(true),
+    compact: true
+  }), /*#__PURE__*/React.createElement("div", {
     className: "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
     style: {
       background: C.panel2
@@ -5139,7 +5605,7 @@ function App() {
     style: {
       color: C.copper
     }
-  }))), /*#__PURE__*/React.createElement("div", {
+  })))), /*#__PURE__*/React.createElement("div", {
     className: `app-drawer-backdrop ${drawerOpen ? "open" : ""}`,
     onClick: () => setDrawerOpen(false)
   }), /*#__PURE__*/React.createElement("aside", {
@@ -5251,14 +5717,18 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(LogOut, {
     size: 16
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "mx-3 mb-3 px-3 py-2.5 rounded-xl text-[10.5px] leading-relaxed",
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSyncModalOpen(true),
+    className: "mx-3 mb-3 px-3 py-2.5 rounded-xl text-[10.5px] leading-relaxed flex items-center gap-2 text-left w-auto",
     style: {
       background: C.panel2,
       color: C.muted,
-      border: `1px solid ${C.line}`
+      border: `1px solid ${C.line}`,
+      cursor: "pointer"
     }
-  }, "Dữ liệu lưu tự động trên trình duyệt của bạn (localStorage).")), /*#__PURE__*/React.createElement("main", {
+  }, /*#__PURE__*/React.createElement(SyncStatusBadge, { syncState: syncState, onClick: () => setSyncModalOpen(true), compact: false }),
+     /*#__PURE__*/React.createElement("span", { className: "flex-1 min-w-0" }, syncState.status === "connected" ? "Nhiều thiết bị đang dùng chung dữ liệu." : "Bấm để bật đồng bộ nhiều thiết bị.")
+  )), /*#__PURE__*/React.createElement("main", {
     className: "flex-1 overflow-y-auto flex flex-col",
     style: {
       minWidth: 0
@@ -5284,7 +5754,10 @@ function App() {
     className: "font-semibold"
   }, NAV.find(n => n.id === tab)?.label)), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-4"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(SyncStatusBadge, {
+    syncState: syncState,
+    onClick: () => setSyncModalOpen(true)
+  }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] font-medium tabular-nums",
     style: {
       color: C.muted
@@ -5424,7 +5897,17 @@ function App() {
     size: 16
   }) : /*#__PURE__*/React.createElement(CheckCircle2, {
     size: 16
-  }), toast.msg));
+  }), toast.msg), /*#__PURE__*/React.createElement(SyncSettingsModal, {
+    open: syncModalOpen,
+    onClose: () => setSyncModalOpen(false),
+    syncState: syncState,
+    readOnly: currentUser.role !== "admin",
+    onSave: cfg => {
+      reconnectSync(cfg);
+      setSyncModalOpen(false);
+      notify(cfg ? "Đã lưu cấu hình — đang kết nối đồng bộ…" : "Đã ngắt đồng bộ nhiều thiết bị");
+    }
+  }));
 }
 
 /* ============================== COMPUTE HELPERS ============================== */
@@ -8757,28 +9240,82 @@ function TramCanScreen({
 
   const yeuCauChoDuyet = data.loBtpChinhSua.filter(x => x.trang_thai === "cho_duyet").slice().reverse();
 
-  const SUB_TABS = [{ id: "can", label: "Cân & in tem" }, { id: "tieu_thu", label: "Tiêu thụ (quét QR)" }, { id: "lich_su", label: "Lịch sử / Sửa · Hủy" }];
+  const tongLoTon = data.loBtp.filter(l => l.trang_thai === "ton").length;
+  const tongKgTon = data.loBtp.filter(l => l.trang_thai === "ton").reduce((s, l) => s + (l.khoi_luong_net_kg || 0), 0);
+  const tongDaTieuThu = data.loBtp.filter(l => l.trang_thai === "da_tieu_thu").length;
+
+  const SUB_TABS = [
+    { id: "can", label: "Cân & in tem", icon: Scale },
+    { id: "tieu_thu", label: "Tiêu thụ (QR)", icon: QrCode },
+    { id: "lich_su", label: "Lịch sử", icon: ClipboardCheck }
+  ];
+
+  const StatChip = ({ icon: Icon, label, value, tone = "muted" }) => {
+    const color = { success: C.success, copper: C.copper, warning: C.warning, muted: C.muted }[tone] || C.muted;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 px-3 py-2 rounded-xl min-w-0",
+      style: { background: C.panel, border: `1px solid ${C.line}`, boxShadow: C.shadowSoft }
+    },
+      /*#__PURE__*/React.createElement("div", {
+        className: "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+        style: { background: `${color}1A`, color }
+      }, /*#__PURE__*/React.createElement(Icon, { size: 14 })),
+      /*#__PURE__*/React.createElement("div", { className: "min-w-0 leading-tight" },
+        /*#__PURE__*/React.createElement("div", { className: "text-[10px] font-medium uppercase tracking-wide truncate", style: { color: C.muted } }, label),
+        /*#__PURE__*/React.createElement("div", { className: "text-[13px] font-bold tabular-nums truncate" }, value)
+      )
+    );
+  };
+
+  const InfoItem = ({ label, value, tone }) => /*#__PURE__*/React.createElement("div", { className: "tc-info-item" },
+    /*#__PURE__*/React.createElement("span", { className: "tc-info-label" }, label),
+    /*#__PURE__*/React.createElement("span", { className: "tc-info-value", style: tone ? { color: tone } : undefined }, value)
+  );
 
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-5"
   },
-  /*#__PURE__*/React.createElement("h1", { className: "text-lg font-semibold" }, "Trạm cân — sinh mã QR & in tem cho BTP"),
-  /*#__PURE__*/React.createElement("div", { className: "flex gap-2 flex-wrap" },
+  /*#__PURE__*/React.createElement("div", { className: "flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4" },
+    /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 min-w-0" },
+      /*#__PURE__*/React.createElement("div", {
+        className: "w-11 h-11 rounded-2xl flex items-center justify-center shrink-0",
+        style: { background: `linear-gradient(135deg, ${C.copper}, ${C.copperDim})`, boxShadow: "0 4px 14px -4px rgba(193,104,47,0.45)" }
+      }, /*#__PURE__*/React.createElement(Scale, { size: 20, color: "#1B140F" })),
+      /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
+        /*#__PURE__*/React.createElement("h1", { className: "text-[17px] font-bold tracking-tight truncate" }, "Trạm cân"),
+        /*#__PURE__*/React.createElement("p", { className: "text-[12px] truncate", style: { color: C.muted } }, "Sinh mã QR, in tem và theo dõi lô BTP theo thời gian thực")
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2.5" },
+      /*#__PURE__*/React.createElement(StatChip, { icon: Boxes, label: "Đang tồn", value: `${tongLoTon} lô`, tone: "copper" }),
+      /*#__PURE__*/React.createElement(StatChip, { icon: Scale, label: "Khối lượng tồn", value: `${fmt(tongKgTon, 1)} kg`, tone: "success" }),
+      /*#__PURE__*/React.createElement(StatChip, { icon: CheckCircle2, label: "Đã tiêu thụ", value: `${tongDaTieuThu} lô`, tone: "muted" })
+    )
+  ),
+
+  /*#__PURE__*/React.createElement("div", { className: "tc-subtabs" },
     SUB_TABS.map(t => /*#__PURE__*/React.createElement("button", {
       key: t.id,
       onClick: () => setSubTab(t.id),
-      className: "px-3.5 py-2 rounded-xl text-[12.5px] font-semibold transition-all",
+      className: "tc-subtab-btn flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold transition-all",
       style: {
-        background: subTab === t.id ? `linear-gradient(180deg, ${C.copper}, ${C.copperDim})` : C.panel2,
+        background: subTab === t.id ? `linear-gradient(180deg, ${C.copper}, ${C.copperDim})` : C.panel,
         color: subTab === t.id ? "#1B140F" : C.muted,
-        border: `1px solid ${subTab === t.id ? "transparent" : C.line}`
+        border: `1px solid ${subTab === t.id ? "transparent" : C.line}`,
+        boxShadow: subTab === t.id ? "0 4px 12px -4px rgba(193,104,47,0.4)" : "none"
       }
-    }, t.label))
+    }, /*#__PURE__*/React.createElement(t.icon, { size: 15 }), /*#__PURE__*/React.createElement("span", null, t.label),
+       t.id === "lich_su" && yeuCauChoDuyet.length > 0 && /*#__PURE__*/React.createElement("span", {
+         className: "rounded-full text-[10px] font-bold px-1.5 leading-[16px] shrink-0",
+         style: { background: subTab === t.id ? "rgba(27,20,15,0.25)" : `${C.danger}22`, color: subTab === t.id ? "#1B140F" : C.danger }
+       }, yeuCauChoDuyet.length)
+    ))
   ),
 
   subTab === "can" && /*#__PURE__*/React.createElement(React.Fragment, null,
     /*#__PURE__*/React.createElement(Panel, { title: "Cân BTP → sinh lô + QR + in tem" },
-      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4" },
+      /*#__PURE__*/React.createElement("div", { className: "text-[10.5px] font-bold uppercase tracking-[0.1em] mb-2.5", style: { color: C.copperDim } }, "Thông tin lô"),
+      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" },
         /*#__PURE__*/React.createElement(Field, { label: "PO" },
           /*#__PURE__*/React.createElement(Select, {
             value: poId, onChange: v => { setPoId(v); setMauId(""); }, placeholder: "Chọn PO",
@@ -8798,84 +9335,104 @@ function TramCanScreen({
           })
         ),
         /*#__PURE__*/React.createElement(Field, { label: "Trạm cân" },
-          /*#__PURE__*/React.createElement("input", { className: inputCls, style: inputStyle, value: tramCan, onChange: e => setTramCan(e.target.value) })
+          /*#__PURE__*/React.createElement("input", { className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" }, value: tramCan, onChange: e => setTramCan(e.target.value) })
         ),
         /*#__PURE__*/React.createElement(Field, { label: "Ca sản xuất" },
           /*#__PURE__*/React.createElement(Select, { value: ca, onChange: setCa, options: CA_SAN_XUAT })
         ),
         /*#__PURE__*/React.createElement(Field, { label: "Khối lượng bì (kg)" },
           /*#__PURE__*/React.createElement("input", {
-            type: "number", className: inputCls, style: inputStyle, value: bi,
+            type: "number", className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" }, value: bi,
             onChange: e => setBi(e.target.value)
           })
         )
       ),
-      /*#__PURE__*/React.createElement("div", { className: "mt-4 p-3 rounded-lg", style: { background: C.panel2 } },
-        /*#__PURE__*/React.createElement("label", { className: "flex items-center gap-4 text-xs mb-3", style: { color: C.muted } },
-          /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1.5" },
-            /*#__PURE__*/React.createElement("input", { type: "radio", checked: cheDoNhap === "tu_dong", onChange: () => { setCheDoNhap("tu_dong"); setDaDoc(false); } }),
-            "Chế độ tự động (đọc từ cân)"
-          ),
-          /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1.5" },
-            /*#__PURE__*/React.createElement("input", { type: "radio", checked: cheDoNhap === "sua_tay", onChange: () => setCheDoNhap("sua_tay") }),
-            "Chế độ sửa tay"
+      /*#__PURE__*/React.createElement("div", { className: "mt-5 pt-4", style: { borderTop: `1px dashed ${C.line}` } },
+        /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between flex-wrap gap-2 mb-3" },
+          /*#__PURE__*/React.createElement("div", { className: "text-[10.5px] font-bold uppercase tracking-[0.1em]", style: { color: C.copperDim } }, "Số liệu cân"),
+          /*#__PURE__*/React.createElement("div", { className: "flex rounded-lg overflow-hidden", style: { border: `1px solid ${C.line}` } },
+            /*#__PURE__*/React.createElement("button", {
+              onClick: () => { setCheDoNhap("tu_dong"); setDaDoc(false); },
+              className: "px-3 py-1.5 text-[11.5px] font-semibold transition-all",
+              style: { background: cheDoNhap === "tu_dong" ? C.panel2 : "transparent", color: cheDoNhap === "tu_dong" ? C.text : C.muted }
+            }, "Tự động"),
+            /*#__PURE__*/React.createElement("button", {
+              onClick: () => setCheDoNhap("sua_tay"),
+              className: "px-3 py-1.5 text-[11.5px] font-semibold transition-all",
+              style: { background: cheDoNhap === "sua_tay" ? C.panel2 : "transparent", color: cheDoNhap === "sua_tay" ? C.text : C.muted, borderLeft: `1px solid ${C.line}` }
+            }, "Sửa tay")
           )
         ),
-        /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4 items-end" },
+        /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1.2fr] gap-4 items-stretch" },
           /*#__PURE__*/React.createElement(Field, { label: "Số cân đọc được (kg)" },
             /*#__PURE__*/React.createElement("input", {
-              type: "number", className: inputCls, style: inputStyle, value: soCan,
+              type: "number", className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" }, value: soCan,
               disabled: cheDoNhap === "tu_dong" && daDoc,
               onChange: e => setSoCan(e.target.value)
             })
           ),
-          cheDoNhap === "tu_dong" && /*#__PURE__*/React.createElement(Btn, { variant: "ghost", onClick: docSoCan }, "Đọc số cân từ thiết bị"),
-          /*#__PURE__*/React.createElement(Field, { label: "Khối lượng lô — NET (kg)" },
+          cheDoNhap === "tu_dong" ? /*#__PURE__*/React.createElement("div", { className: "flex items-end" },
+            /*#__PURE__*/React.createElement(Btn, { variant: "ghost", onClick: docSoCan }, /*#__PURE__*/React.createElement(RefreshCwIcon, { size: 14 }), " Đọc số cân")
+          ) : /*#__PURE__*/React.createElement("div", { className: "hidden lg:block" }),
+          /*#__PURE__*/React.createElement("div", { className: "flex flex-col gap-1" },
+            /*#__PURE__*/React.createElement("span", { className: "text-xs uppercase tracking-wide", style: { color: C.muted } }, "Khối lượng lô — NET"),
             /*#__PURE__*/React.createElement("div", {
-              className: "px-3 py-2 rounded-lg text-sm font-bold",
-              style: { background: C.panel, border: `1px solid ${C.line}`, color: netKg > 0 ? C.success : C.muted }
-            }, fmt(netKg, 2), " kg")
+              className: "tc-scale-readout px-4 py-3 rounded-xl flex items-baseline gap-2 justify-between",
+              style: { background: netKg > 0 ? `${C.success}14` : C.panel2, border: `1px solid ${netKg > 0 ? `${C.success}55` : C.line}` }
+            },
+              /*#__PURE__*/React.createElement("span", { className: "text-2xl font-bold", style: { color: netKg > 0 ? C.success : C.muted } }, fmt(netKg, 2)),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold shrink-0", style: { color: C.muted } }, "kg")
+            )
           )
         )
       ),
-      /*#__PURE__*/React.createElement("div", { className: "mt-4" },
+      /*#__PURE__*/React.createElement("div", { className: "mt-5" },
         /*#__PURE__*/React.createElement(Btn, { onClick: xacNhanCan }, /*#__PURE__*/React.createElement(CheckCircle2, { size: 16 }), " Xác nhận cân → sinh QR & in 2 tem")
       )
     ),
     lastLo && /*#__PURE__*/React.createElement(Panel, { title: `Tem vừa in — lô ${lastLo.id}` },
-      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-4 flex-wrap" },
-        /*#__PURE__*/React.createElement(QrSvg, { value: lastLo.id, size: 96 }),
-        /*#__PURE__*/React.createElement("div", { className: "text-sm flex flex-col gap-1" },
-          /*#__PURE__*/React.createElement("div", null, "Mã lô: ", /*#__PURE__*/React.createElement("b", null, lastLo.id)),
-          /*#__PURE__*/React.createElement("div", null, "PO: ", data.pos.find(p => p.id === lastLo.po_id)?.ma_po),
-          /*#__PURE__*/React.createElement("div", null, "Công đoạn: ", CD_MAP[lastLo.cong_doan]?.ten),
-          /*#__PURE__*/React.createElement("div", null, "Khối lượng net: ", /*#__PURE__*/React.createElement("b", { style: { color: C.success } }, fmt(lastLo.khoi_luong_net_kg, 2), " kg")),
-          /*#__PURE__*/React.createElement(Btn, { variant: "ghost", onClick: () => inLaiTem(lastLo) }, /*#__PURE__*/React.createElement(Printer, { size: 14 }), " In lại tem này")
+      /*#__PURE__*/React.createElement("div", { className: "flex flex-col sm:flex-row gap-5" },
+        /*#__PURE__*/React.createElement("div", { className: "shrink-0 flex justify-center" },
+          /*#__PURE__*/React.createElement(QrSvg, { value: lastLo.id, size: 96 })
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0 flex flex-col gap-3" },
+          /*#__PURE__*/React.createElement("div", { className: "tc-info-grid" },
+            /*#__PURE__*/React.createElement(InfoItem, { label: "Mã lô", value: lastLo.id }),
+            /*#__PURE__*/React.createElement(InfoItem, { label: "PO", value: data.pos.find(p => p.id === lastLo.po_id)?.ma_po || "—" }),
+            /*#__PURE__*/React.createElement(InfoItem, { label: "Công đoạn", value: CD_MAP[lastLo.cong_doan]?.ten || "—" }),
+            /*#__PURE__*/React.createElement(InfoItem, { label: "Khối lượng net", value: `${fmt(lastLo.khoi_luong_net_kg, 2)} kg`, tone: C.success })
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement(Btn, { variant: "ghost", onClick: () => inLaiTem(lastLo) }, /*#__PURE__*/React.createElement(Printer, { size: 14 }), " In lại tem này")
+          )
         )
       )
     )
   ),
 
   subTab === "tieu_thu" && /*#__PURE__*/React.createElement(Panel, { title: "Tiêu thụ lô — bắn/nhập mã QR" },
-    /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4 items-end" },
+    /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end" },
       /*#__PURE__*/React.createElement(Field, { label: "Mã lô / Quét QR (Enter để tra cứu)" },
-        /*#__PURE__*/React.createElement("input", {
-          className: inputCls, style: inputStyle, value: scanCode, placeholder: "VD: LO-240718-0032",
-          onChange: e => setScanCode(e.target.value),
-          onKeyDown: e => { if (e.key === "Enter") traCuuLo(); }
-        })
+        /*#__PURE__*/React.createElement("div", { className: "relative" },
+          /*#__PURE__*/React.createElement(QrCode, { size: 15, style: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.muted } }),
+          /*#__PURE__*/React.createElement("input", {
+            className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box", paddingLeft: 32 }, value: scanCode, placeholder: "VD: LO-240718-0032",
+            onChange: e => setScanCode(e.target.value),
+            onKeyDown: e => { if (e.key === "Enter") traCuuLo(); }
+          })
+        )
       ),
       /*#__PURE__*/React.createElement(Btn, { variant: "ghost", onClick: traCuuLo }, /*#__PURE__*/React.createElement(QrCode, { size: 15 }), " Tra cứu")
     ),
-    foundLo ? /*#__PURE__*/React.createElement("div", { className: "mt-4 p-4 rounded-lg flex flex-col gap-3", style: { background: C.panel2 } },
-      /*#__PURE__*/React.createElement("div", { className: "text-sm flex flex-wrap gap-x-6 gap-y-1" },
-        /*#__PURE__*/React.createElement("span", null, "Lô: ", /*#__PURE__*/React.createElement("b", null, foundLo.id)),
-        /*#__PURE__*/React.createElement("span", null, "PO gốc: ", data.pos.find(p => p.id === foundLo.po_id)?.ma_po),
-        /*#__PURE__*/React.createElement("span", null, "Công đoạn gốc: ", CD_MAP[foundLo.cong_doan]?.ten),
-        /*#__PURE__*/React.createElement("span", null, "Khối lượng: ", /*#__PURE__*/React.createElement("b", null, fmt(foundLo.khoi_luong_net_kg, 2), " kg")),
-        /*#__PURE__*/React.createElement("span", null, "Ngày cân: ", foundLo.ngay_gio_can)
+    foundLo ? /*#__PURE__*/React.createElement("div", { className: "mt-4 p-4 rounded-xl flex flex-col gap-4", style: { background: C.panel2, border: `1px solid ${C.line}` } },
+      /*#__PURE__*/React.createElement("div", { className: "tc-info-grid" },
+        /*#__PURE__*/React.createElement(InfoItem, { label: "Lô", value: foundLo.id }),
+        /*#__PURE__*/React.createElement(InfoItem, { label: "PO gốc", value: data.pos.find(p => p.id === foundLo.po_id)?.ma_po || "—" }),
+        /*#__PURE__*/React.createElement(InfoItem, { label: "Công đoạn gốc", value: CD_MAP[foundLo.cong_doan]?.ten || "—" }),
+        /*#__PURE__*/React.createElement(InfoItem, { label: "Khối lượng", value: `${fmt(foundLo.khoi_luong_net_kg, 2)} kg` }),
+        /*#__PURE__*/React.createElement(InfoItem, { label: "Ngày cân", value: foundLo.ngay_gio_can })
       ),
-      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-4" },
+      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4" },
         /*#__PURE__*/React.createElement(Field, { label: "Công đoạn đến" },
           /*#__PURE__*/React.createElement(Select, {
             value: congDoanDen, onChange: setCongDoanDen, placeholder: "Chọn công đoạn đến",
@@ -8897,14 +9454,14 @@ function TramCanScreen({
     isAdmin && yeuCauChoDuyet.length > 0 && /*#__PURE__*/React.createElement(Panel, { title: `Yêu cầu chờ duyệt (${yeuCauChoDuyet.length})` },
       /*#__PURE__*/React.createElement("div", { className: "flex flex-col gap-2" },
         yeuCauChoDuyet.map(yc => /*#__PURE__*/React.createElement("div", {
-          key: yc.id, className: "flex items-center justify-between gap-3 p-2.5 rounded-lg flex-wrap",
-          style: { background: C.panel2 }
+          key: yc.id, className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl",
+          style: { background: C.panel2, border: `1px solid ${C.line}` }
         },
-          /*#__PURE__*/React.createElement("div", { className: "text-xs" },
+          /*#__PURE__*/React.createElement("div", { className: "text-xs min-w-0" },
             /*#__PURE__*/React.createElement("b", null, yc.loai_thao_tac === "sua_khoi_luong" ? "Sửa khối lượng" : "Hủy lô"), " — lô ", yc.lo_id, " · ", yc.nguoi_thuc_hien, " · ", yc.ngay_gio,
-            /*#__PURE__*/React.createElement("div", { style: { color: C.muted } }, "Lý do: ", yc.ly_do, yc.loai_thao_tac === "sua_khoi_luong" ? ` (${fmt(yc.gia_tri_cu)} → ${fmt(yc.gia_tri_moi)} kg)` : "")
+            /*#__PURE__*/React.createElement("div", { style: { color: C.muted }, className: "mt-0.5 break-words" }, "Lý do: ", yc.ly_do, yc.loai_thao_tac === "sua_khoi_luong" ? ` (${fmt(yc.gia_tri_cu)} → ${fmt(yc.gia_tri_moi)} kg)` : "")
           ),
-          /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
+          /*#__PURE__*/React.createElement("div", { className: "flex gap-2 shrink-0" },
             /*#__PURE__*/React.createElement(Btn, { variant: "ghost", onClick: () => duyetYeuCau(yc, true) }, "Duyệt"),
             /*#__PURE__*/React.createElement(Btn, { variant: "danger", onClick: () => duyetYeuCau(yc, false) }, "Từ chối")
           )
@@ -8913,7 +9470,7 @@ function TramCanScreen({
     ),
     /*#__PURE__*/React.createElement(Panel, {
       title: "Lịch sử lô BTP (cân → tiêu thụ)",
-      right: /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
+      right: /*#__PURE__*/React.createElement("div", { className: "flex flex-wrap gap-2" },
         /*#__PURE__*/React.createElement(Select, {
           value: filterPoId, onChange: setFilterPoId,
           options: [{ value: "ALL", label: "Tất cả PO" }, ...data.pos.map(p => ({ value: p.id, label: p.ma_po }))]
@@ -8925,26 +9482,51 @@ function TramCanScreen({
       )
     },
       rowsLichSu.length === 0 ? /*#__PURE__*/React.createElement("div", { className: "text-sm py-6 text-center", style: { color: C.muted } }, "Chưa có dữ liệu") :
-      /*#__PURE__*/React.createElement("div", { className: "overflow-x-auto" },
-        /*#__PURE__*/React.createElement("table", { className: "w-full text-sm" },
-          /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { className: "text-left", style: { color: C.muted } },
-            ["Mã lô", "PO", "Công đoạn", "Net (kg)", "Ngày giờ cân", "Người cân", "Nguồn", "Trạng thái", ""].map(h => /*#__PURE__*/React.createElement("th", { key: h, className: "py-2 pr-4" }, h))
-          )),
-          /*#__PURE__*/React.createElement("tbody", null, rowsLichSu.map(lo => /*#__PURE__*/React.createElement("tr", { key: lo.id, className: "border-t", style: { borderColor: C.line } },
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 font-mono text-[12px]" }, lo.id),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4" }, data.pos.find(p => p.id === lo.po_id)?.ma_po),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4" }, CD_MAP[lo.cong_doan]?.ten),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4" }, fmt(lo.khoi_luong_net_kg, 2)),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 text-[11.5px]" }, lo.ngay_gio_can),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4" }, lo.nguoi_can),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 text-[11px]" }, lo.che_do_nhap === "tu_dong" ? "Tự động" : "Sửa tay"),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4" }, /*#__PURE__*/React.createElement(StatusPill, { tone: trangThaiLoTone(lo.trang_thai) }, trangThaiLoLabel(lo.trang_thai))),
-            /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4" }, /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2.5" },
-              /*#__PURE__*/React.createElement("button", { title: "In lại tem", onClick: () => inLaiTem(lo), style: { color: C.steel } }, /*#__PURE__*/React.createElement(Printer, { size: 14 })),
-              lo.trang_thai !== "da_huy" && /*#__PURE__*/React.createElement("button", { title: "Sửa khối lượng", onClick: () => guiYeuCauSua(lo), style: { color: C.steel } }, /*#__PURE__*/React.createElement(Pencil, { size: 14 })),
-              lo.trang_thai !== "da_huy" && /*#__PURE__*/React.createElement("button", { title: "Hủy lô", onClick: () => guiYeuCauHuy(lo), style: { color: C.danger } }, /*#__PURE__*/React.createElement(Trash2, { size: 14 }))
-            ))
-          )))
+      /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("div", { className: "tc-history-table-wrap overflow-x-auto" },
+          /*#__PURE__*/React.createElement("table", { className: "w-full text-sm" },
+            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { className: "text-left", style: { color: C.muted } },
+              ["Mã lô", "PO", "Công đoạn", "Net (kg)", "Ngày giờ cân", "Người cân", "Nguồn", "Trạng thái", ""].map(h => /*#__PURE__*/React.createElement("th", { key: h, className: "py-2 pr-4 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap" }, h))
+            )),
+            /*#__PURE__*/React.createElement("tbody", null, rowsLichSu.map(lo => /*#__PURE__*/React.createElement("tr", { key: lo.id, className: "border-t", style: { borderColor: C.line } },
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 font-mono text-[12px] whitespace-nowrap" }, lo.id),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 whitespace-nowrap" }, data.pos.find(p => p.id === lo.po_id)?.ma_po),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 whitespace-nowrap" }, CD_MAP[lo.cong_doan]?.ten),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 whitespace-nowrap tabular-nums" }, fmt(lo.khoi_luong_net_kg, 2)),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 text-[11.5px] whitespace-nowrap" }, lo.ngay_gio_can),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 whitespace-nowrap" }, lo.nguoi_can),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 text-[11px] whitespace-nowrap" }, lo.che_do_nhap === "tu_dong" ? "Tự động" : "Sửa tay"),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 whitespace-nowrap" }, /*#__PURE__*/React.createElement(StatusPill, { tone: trangThaiLoTone(lo.trang_thai) }, trangThaiLoLabel(lo.trang_thai))),
+              /*#__PURE__*/React.createElement("td", { className: "py-2 pr-4 whitespace-nowrap" }, /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2.5" },
+                /*#__PURE__*/React.createElement("button", { title: "In lại tem", onClick: () => inLaiTem(lo), style: { color: C.steel } }, /*#__PURE__*/React.createElement(Printer, { size: 14 })),
+                lo.trang_thai !== "da_huy" && /*#__PURE__*/React.createElement("button", { title: "Sửa khối lượng", onClick: () => guiYeuCauSua(lo), style: { color: C.steel } }, /*#__PURE__*/React.createElement(Pencil, { size: 14 })),
+                lo.trang_thai !== "da_huy" && /*#__PURE__*/React.createElement("button", { title: "Hủy lô", onClick: () => guiYeuCauHuy(lo), style: { color: C.danger } }, /*#__PURE__*/React.createElement(Trash2, { size: 14 }))
+              ))
+            )))
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "tc-history-cards" },
+          rowsLichSu.map(lo => /*#__PURE__*/React.createElement("div", {
+            key: lo.id, className: "tc-history-card", style: { background: C.panel2, border: `1px solid ${C.line}` }
+          },
+            /*#__PURE__*/React.createElement("div", { className: "tc-history-card-top" },
+              /*#__PURE__*/React.createElement("span", { className: "tc-history-card-id" }, lo.id),
+              /*#__PURE__*/React.createElement(StatusPill, { tone: trangThaiLoTone(lo.trang_thai) }, trangThaiLoLabel(lo.trang_thai))
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "tc-info-grid" },
+              /*#__PURE__*/React.createElement(InfoItem, { label: "PO", value: data.pos.find(p => p.id === lo.po_id)?.ma_po || "—" }),
+              /*#__PURE__*/React.createElement(InfoItem, { label: "Công đoạn", value: CD_MAP[lo.cong_doan]?.ten || "—" }),
+              /*#__PURE__*/React.createElement(InfoItem, { label: "Net (kg)", value: fmt(lo.khoi_luong_net_kg, 2) }),
+              /*#__PURE__*/React.createElement(InfoItem, { label: "Người cân", value: lo.nguoi_can || "—" }),
+              /*#__PURE__*/React.createElement(InfoItem, { label: "Ngày giờ cân", value: lo.ngay_gio_can }),
+              /*#__PURE__*/React.createElement(InfoItem, { label: "Nguồn", value: lo.che_do_nhap === "tu_dong" ? "Tự động" : "Sửa tay" })
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "tc-history-card-actions", style: { borderTop: `1px dashed ${C.line}`, paddingTop: 8 } },
+              /*#__PURE__*/React.createElement("button", { title: "In lại tem", onClick: () => inLaiTem(lo), style: { color: C.steel, display: "flex", alignItems: "center", gap: 4, fontSize: 11.5 } }, /*#__PURE__*/React.createElement(Printer, { size: 14 }), " In tem"),
+              lo.trang_thai !== "da_huy" && /*#__PURE__*/React.createElement("button", { title: "Sửa khối lượng", onClick: () => guiYeuCauSua(lo), style: { color: C.steel, display: "flex", alignItems: "center", gap: 4, fontSize: 11.5 } }, /*#__PURE__*/React.createElement(Pencil, { size: 14 }), " Sửa"),
+              lo.trang_thai !== "da_huy" && /*#__PURE__*/React.createElement("button", { title: "Hủy lô", onClick: () => guiYeuCauHuy(lo), style: { color: C.danger, display: "flex", alignItems: "center", gap: 4, fontSize: 11.5 } }, /*#__PURE__*/React.createElement(Trash2, { size: 14 }), " Hủy")
+            )
+          ))
         )
       ),
       !isAdmin && /*#__PURE__*/React.createElement("div", { className: "mt-3 text-[11px] flex items-center gap-1", style: { color: C.muted } },
