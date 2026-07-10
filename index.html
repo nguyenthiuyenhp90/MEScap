@@ -3147,6 +3147,31 @@ const FirebaseSync = (function () {
     emit();
   }
 
+  function deriveProjectIdFromUrl(url) {
+    try {
+      const host = new URL(url).hostname; // vd: mescap-5b3f7-default-rtdb.asia-southeast1.firebasedatabase.app
+      const firstLabel = host.split(".")[0] || "";
+      return firstLabel.replace(/-default-rtdb$/, "");
+    } catch {
+      return "";
+    }
+  }
+
+  function normalizeConfig(cfg) {
+    if (!cfg) return null;
+    const databaseURL = (cfg.databaseURL || "").trim().replace(/\/+$/, "");
+    const roomCode = (cfg.roomCode || "main").trim() || "main";
+    const projectId = (cfg.projectId || deriveProjectIdFromUrl(databaseURL) || "").trim();
+    return {
+      databaseURL,
+      roomCode,
+      apiKey: (cfg.apiKey || "").trim(),
+      authDomain: (cfg.authDomain || (projectId ? `${projectId}.firebaseapp.com` : "")).trim(),
+      projectId,
+      appId: (cfg.appId || "").trim()
+    };
+  }
+
   function getConfig() {
     if (currentConfig) return currentConfig;
     try {
@@ -3159,16 +3184,16 @@ const FirebaseSync = (function () {
   }
 
   function saveConfig(cfg) {
-    currentConfig = cfg;
+    currentConfig = cfg ? normalizeConfig(cfg) : null;
     try {
-      if (cfg) localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+      if (currentConfig) localStorage.setItem(CFG_KEY, JSON.stringify(currentConfig));
       else localStorage.removeItem(CFG_KEY);
     } catch {}
   }
 
   function isConfigured() {
     const c = getConfig();
-    return !!(c && c.databaseURL && c.apiKey && c.roomCode);
+    return !!(c && c.databaseURL);
   }
 
   function disconnect() {
@@ -3186,7 +3211,7 @@ const FirebaseSync = (function () {
 
   function connect(onRemoteUpdate) {
     const cfg = getConfig();
-    if (!cfg || !cfg.databaseURL || !cfg.apiKey || !cfg.roomCode) {
+    if (!cfg || !cfg.databaseURL) {
       setStatus("disconnected");
       return false;
     }
@@ -3198,15 +3223,16 @@ const FirebaseSync = (function () {
       disconnect();
       setStatus("connecting");
       const appName = "mes-cap-sync-" + Date.now();
-      app = firebase.initializeApp({
-        apiKey: cfg.apiKey,
-        authDomain: cfg.authDomain || undefined,
-        databaseURL: cfg.databaseURL,
-        projectId: cfg.projectId || undefined,
-        appId: cfg.appId || undefined
-      }, appName);
+      const initCfg = { databaseURL: cfg.databaseURL };
+      // Các trường sau là tuỳ chọn — Realtime Database vẫn kết nối được chỉ với databaseURL
+      // khi rule cho phép đọc/ghi theo phòng. Điền thêm nếu có để ổn định hơn.
+      if (cfg.apiKey) initCfg.apiKey = cfg.apiKey;
+      if (cfg.authDomain) initCfg.authDomain = cfg.authDomain;
+      if (cfg.projectId) initCfg.projectId = cfg.projectId;
+      if (cfg.appId) initCfg.appId = cfg.appId;
+      app = firebase.initializeApp(initCfg, appName);
       const db = firebase.database(app);
-      const roomPath = "mes_rooms/" + encodeURIComponent(cfg.roomCode) + "/state";
+      const roomPath = "mes_rooms/" + encodeURIComponent(cfg.roomCode || "main") + "/state";
       dbRef = db.ref(roomPath);
       remoteHandler = snap => {
         const val = snap.val();
@@ -3216,7 +3242,7 @@ const FirebaseSync = (function () {
         }
       };
       dbRef.on("value", remoteHandler, err => {
-        setStatus("error", (err && err.message) || "Lỗi kết nối Firebase");
+        setStatus("error", (err && err.message) || "Lỗi kết nối Firebase — kiểm tra lại link Database URL và Rules.");
       });
       // Firebase báo trạng thái mạng của SDK (không phải trạng thái phòng)
       db.ref(".info/connected").on("value", s => {
@@ -4739,34 +4765,37 @@ function SyncStatusBadge({ syncState, onClick, compact }) {
 
 function SyncSettingsModal({ open, onClose, syncState, onSave, readOnly }) {
   const existing = (syncState && syncState.config) || {};
+  const [databaseURL, setDatabaseURL] = useState(existing.databaseURL || "");
+  const [roomCode, setRoomCode] = useState(existing.roomCode || "");
   const [apiKey, setApiKey] = useState(existing.apiKey || "");
   const [authDomain, setAuthDomain] = useState(existing.authDomain || "");
-  const [databaseURL, setDatabaseURL] = useState(existing.databaseURL || "");
   const [projectId, setProjectId] = useState(existing.projectId || "");
   const [appId, setAppId] = useState(existing.appId || "");
-  const [roomCode, setRoomCode] = useState(existing.roomCode || "");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   useEffect(() => {
     if (open) {
       const c = (syncState && syncState.config) || {};
+      setDatabaseURL(c.databaseURL || "");
+      setRoomCode(c.roomCode || "");
       setApiKey(c.apiKey || "");
       setAuthDomain(c.authDomain || "");
-      setDatabaseURL(c.databaseURL || "");
       setProjectId(c.projectId || "");
       setAppId(c.appId || "");
-      setRoomCode(c.roomCode || "");
+      setShowAdvanced(false);
     }
   }, [open]);
   if (!open) return null;
   const meta = SYNC_META[syncState.status] || SYNC_META.disconnected;
-  const canSave = apiKey.trim() && databaseURL.trim() && roomCode.trim();
+  const urlLooksValid = /^https:\/\/.+\.(firebaseio\.com|firebasedatabase\.app)\/?$/i.test(databaseURL.trim());
+  const canSave = urlLooksValid;
   const handleSave = () => {
     onSave({
+      databaseURL: databaseURL.trim(),
+      roomCode: roomCode.trim() || "main",
       apiKey: apiKey.trim(),
       authDomain: authDomain.trim(),
-      databaseURL: databaseURL.trim(),
       projectId: projectId.trim(),
-      appId: appId.trim(),
-      roomCode: roomCode.trim()
+      appId: appId.trim()
     });
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -4802,7 +4831,7 @@ function SyncSettingsModal({ open, onClose, syncState, onSave, readOnly }) {
         }, /*#__PURE__*/React.createElement(CloudIcon, { size: 17, color: "#1B140F" })),
         /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
           /*#__PURE__*/React.createElement("div", { className: "text-[14px] font-bold truncate" }, "Đồng bộ thời gian thực"),
-          /*#__PURE__*/React.createElement("div", { className: "text-[11px] truncate", style: { color: C.muted } }, "Kết nối nhiều thiết bị bằng Firebase")
+          /*#__PURE__*/React.createElement("div", { className: "text-[11px] truncate", style: { color: C.muted } }, "Dán link Realtime Database là đồng bộ được")
         )
       ),
       /*#__PURE__*/React.createElement("button", {
@@ -4817,51 +4846,67 @@ function SyncSettingsModal({ open, onClose, syncState, onSave, readOnly }) {
       }, /*#__PURE__*/React.createElement(meta.icon, { size: 14 }), meta.label, syncState.error ? ` — ${syncState.error}` : ""),
       readOnly ? /*#__PURE__*/React.createElement("div", { className: "text-[11.5px] leading-relaxed", style: { color: C.muted } },
         "Đồng bộ nhiều thiết bị được cấu hình bởi Quản trị viên. ",
-        syncState.config && syncState.config.roomCode ? `Thiết bị này đang thuộc phòng đồng bộ "${syncState.config.roomCode}".` : "Hiện chưa có phòng đồng bộ nào được thiết lập."
+        syncState.config && syncState.config.databaseURL ? `Thiết bị này đang dùng chung dữ liệu qua "${syncState.config.databaseURL}"${syncState.config.roomCode ? ` (phòng "${syncState.config.roomCode}")` : ""}.` : "Hiện chưa có kết nối đồng bộ nào được thiết lập."
       ) : /*#__PURE__*/React.createElement(React.Fragment, null,
       /*#__PURE__*/React.createElement("div", { className: "text-[11.5px] leading-relaxed", style: { color: C.muted } },
-        "Nhập thông tin cấu hình Firebase Realtime Database (mục Project settings → SDK setup trên console Firebase) và đặt một ",
-        /*#__PURE__*/React.createElement("b", null, "Mã phòng đồng bộ"), " giống nhau trên mọi thiết bị cần dùng chung dữ liệu."
+        "Chỉ cần dán ", /*#__PURE__*/React.createElement("b", null, "link Realtime Database"),
+        " (lấy trong Firebase Console → Realtime Database) vào ô bên dưới rồi bấm ", /*#__PURE__*/React.createElement("b", null, "Lưu & kết nối"),
+        ". Mọi thiết bị dán cùng 1 link sẽ tự động dùng chung dữ liệu."
       ),
-      /*#__PURE__*/React.createElement(Field, { label: "Mã phòng đồng bộ *" },
+      /*#__PURE__*/React.createElement(Field, { label: "Link Realtime Database *" },
         /*#__PURE__*/React.createElement("input", {
           className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
-          value: roomCode, placeholder: "VD: nha-may-1",
-          onChange: e => setRoomCode(e.target.value)
-        })
-      ),
-      /*#__PURE__*/React.createElement(Field, { label: "API Key *" },
-        /*#__PURE__*/React.createElement("input", {
-          className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
-          value: apiKey, onChange: e => setApiKey(e.target.value)
-        })
-      ),
-      /*#__PURE__*/React.createElement(Field, { label: "Database URL *" },
-        /*#__PURE__*/React.createElement("input", {
-          className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
-          value: databaseURL, placeholder: "https://ten-du-an-default-rtdb.asia-southeast1.firebasedatabase.app",
+          value: databaseURL, placeholder: "https://ten-du-an-default-rtdb.asia-southeast1.firebasedatabase.app/",
           onChange: e => setDatabaseURL(e.target.value)
         })
       ),
-      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-3" },
-        /*#__PURE__*/React.createElement(Field, { label: "Auth Domain" },
-          /*#__PURE__*/React.createElement("input", {
-            className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
-            value: authDomain, onChange: e => setAuthDomain(e.target.value)
-          })
-        ),
-        /*#__PURE__*/React.createElement(Field, { label: "Project ID" },
-          /*#__PURE__*/React.createElement("input", {
-            className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
-            value: projectId, onChange: e => setProjectId(e.target.value)
-          })
-        )
-      ),
-      /*#__PURE__*/React.createElement(Field, { label: "App ID" },
+      databaseURL.trim() && !urlLooksValid && /*#__PURE__*/React.createElement("div", {
+        className: "text-[11px] -mt-2.5", style: { color: C.danger }
+      }, "Link chưa đúng định dạng — phải bắt đầu bằng https:// và có đuôi firebasedatabase.app hoặc firebaseio.com"),
+      /*#__PURE__*/React.createElement(Field, { label: "Mã phòng đồng bộ (tuỳ chọn)" },
         /*#__PURE__*/React.createElement("input", {
           className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
-          value: appId, onChange: e => setAppId(e.target.value)
+          value: roomCode, placeholder: "Mặc định: main — đặt riêng nếu nhiều xưởng dùng chung 1 link",
+          onChange: e => setRoomCode(e.target.value)
         })
+      ),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => setShowAdvanced(v => !v),
+        className: "text-[11.5px] font-semibold flex items-center gap-1 self-start",
+        style: { color: C.steel, background: "transparent", border: 0, cursor: "pointer", padding: 0 }
+      }, /*#__PURE__*/React.createElement(ChevronRight, {
+        size: 13, style: { transform: showAdvanced ? "rotate(90deg)" : "none", transition: "transform 0.15s ease" }
+      }), showAdvanced ? "Ẩn cấu hình nâng cao" : "Cấu hình nâng cao (không bắt buộc)"),
+      showAdvanced && /*#__PURE__*/React.createElement("div", { className: "flex flex-col gap-4 p-3 rounded-xl", style: { background: C.panel2, border: `1px solid ${C.line}` } },
+        /*#__PURE__*/React.createElement("div", { className: "text-[10.5px] leading-relaxed", style: { color: C.muted } },
+          "Chỉ cần điền nếu Realtime Database của bạn bật xác thực (Auth) hoặc muốn khai báo đầy đủ như trong Firebase Console."
+        ),
+        /*#__PURE__*/React.createElement(Field, { label: "API Key" },
+          /*#__PURE__*/React.createElement("input", {
+            className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+            value: apiKey, onChange: e => setApiKey(e.target.value)
+          })
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+          /*#__PURE__*/React.createElement(Field, { label: "Auth Domain" },
+            /*#__PURE__*/React.createElement("input", {
+              className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+              value: authDomain, onChange: e => setAuthDomain(e.target.value)
+            })
+          ),
+          /*#__PURE__*/React.createElement(Field, { label: "Project ID" },
+            /*#__PURE__*/React.createElement("input", {
+              className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+              value: projectId, onChange: e => setProjectId(e.target.value)
+            })
+          )
+        ),
+        /*#__PURE__*/React.createElement(Field, { label: "App ID" },
+          /*#__PURE__*/React.createElement("input", {
+            className: inputCls, style: { ...inputStyle, width: "100%", boxSizing: "border-box" },
+            value: appId, onChange: e => setAppId(e.target.value)
+          })
+        )
       ),
       /*#__PURE__*/React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
         /*#__PURE__*/React.createElement(Btn, { onClick: handleSave, disabled: !canSave }, /*#__PURE__*/React.createElement(CloudIcon, { size: 15 }), " Lưu & kết nối"),
@@ -4871,7 +4916,7 @@ function SyncSettingsModal({ open, onClose, syncState, onSave, readOnly }) {
       /*#__PURE__*/React.createElement("div", {
         className: "text-[10.5px] leading-relaxed px-3 py-2.5 rounded-lg",
         style: { background: C.panel2, color: C.muted }
-      }, "Mẹo: tạo Realtime Database ở chế độ test, hoặc đặt rule read/write theo mã phòng để bảo mật hơn. Dữ liệu vẫn luôn được lưu cục bộ (localStorage) trên từng thiết bị để dùng offline.")
+      }, "Mẹo: Realtime Database ở chế độ test (read/write: true) là dùng được ngay chỉ với link. Nên đặt Rules giới hạn theo nhánh \"mes_rooms\" để bảo mật hơn khi dùng lâu dài. Dữ liệu vẫn luôn được lưu cục bộ (localStorage) trên từng thiết bị để dùng offline.")
       )
     )
   ));
